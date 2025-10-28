@@ -103,12 +103,36 @@ with pdfplumber.open("long_survey.pdf") as pdf:
 - [TABLES.md](.claude/skills/pdf-processing-pro/TABLES.md) - Advanced table extraction
 - [OCR.md](.claude/skills/pdf-processing-pro/OCR.md) - Scanned PDF processing
 
+## Primary Use Case: Subdivision Planning
+
+This tool focuses on helping with subdivision planning tasks involving:
+- **Drainage design** - Storm drains, open channels, culverts
+- **Street/Road design** - Right-of-way widths, pavement design
+- **Parking requirements** - Calculating required spaces
+- **Code compliance** - Austin Land Development Code lookups
+
+### Key Code Resources
+
+The main references are:
+- **Drainage Criteria Manual (DCM)** - Stormwater and drainage standards
+- **Transportation Criteria Manual (TCM)** - Street and ROW standards
+- **Title 25 (LDC)** - Development regulations (Chapters 25-6, 25-7)
+- **Title 30** - Subdivision regulations
+
+See [subdivision-planning-code-references.md](docs/subdivision-planning-code-references.md) for complete reference guide.
+
+## Documentation
+
+- [austin-code-formats-analysis.md](docs/austin-code-formats-analysis.md) - Analysis of available code formats
+- [subdivision-planning-code-references.md](docs/subdivision-planning-code-references.md) - Subdivision planning code reference
+- [SKILL.md](.claude/skills/pdf-processing-pro/SKILL.md) - PDF Processing Pro documentation
+
 ## Next Steps
 
-1. Define specific application requirements
-2. Create custom processing workflows
-3. Build validation and analysis tools
-4. Develop user interfaces for common tasks
+1. ✅ Define specific application requirements (subdivision planning)
+2. ⏳ Track most-used code sections for 2-4 weeks
+3. ⏳ Download critical sections as PDFs
+4. ⏳ Build intelligent code lookup tool
 
 ## License
 
