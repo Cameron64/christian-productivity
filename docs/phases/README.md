@@ -1,8 +1,8 @@
 # ESC Validator - Phase Implementation Tracker
 
-**Current Version:** 0.2.1
-**Last Updated:** 2025-11-01
-**Status:** Phase 1, 2, and 2.1 complete - Production ready
+**Current Version:** 0.3.0
+**Last Updated:** 2025-11-02
+**Status:** Phase 1, 2, 2.1, and 4 complete - Production ready with quality checks
 
 ---
 
@@ -16,7 +16,7 @@
 
 ## Phase Status Overview
 
-### ✅ Completed Phases (3 phases + 4 sub-phases)
+### ✅ Completed Phases (4 phases + 4 sub-phases)
 
 | Phase | Name | Completion Date | Accuracy | Status |
 |-------|------|-----------------|----------|--------|
@@ -26,19 +26,20 @@
 | 1.3 | Visual Detection | 2025-11-01 | - | ✅ Complete |
 | **2** | Line Type Detection | 2025-11-01 | 70-80% | ✅ Production Ready |
 | **2.1** | **Spatial Filtering** | 2025-11-01 | **99% reduction** | ✅ **Production Ready** |
+| **3** | North Arrow/Scale Detection | 2025-11-02 | - | ❌ **Deferred** (Phase 1.3.2) |
+| **4** | **Quality Checks (Lite)** | 2025-11-02 | **TBD** | ✅ **Complete - Needs Optimization** |
 
-### ⏳ Pending Phases (4 phases)
+### ⏳ Pending/Deferred Phases (3 phases)
 
 | Phase | Name | Priority | Status | Notes |
 |-------|------|----------|--------|-------|
-| **3** | Spatial Reasoning | Medium | ⏳ Not Started | May not be needed |
-| **4** | Fuzzy Matching | Medium | ⏳ Not Started | May not be needed |
+| **3** | North Arrow/Scale Detection | Low | ❌ Deferred | Template matching not feasible (Phase 1.3.2) |
 | **5** | Confidence Scoring | Medium | ⏳ Not Started | May not be needed |
 | **6** | Machine Learning | Low | ⏳ Optional | Only if <70% accuracy |
 
 ---
 
-## Current Capabilities (v0.2.1)
+## Current Capabilities (v0.3.0)
 
 ### What Works Now
 
@@ -57,14 +58,24 @@
 - ✅ Contour convention verification
 - ✅ Spatial proximity filtering
 
+**Quality Checks (Phase 4 - NEW):**
+- ✅ Overlapping label detection (34 overlaps found on test sheet)
+- ✅ Critical/warning/minor severity classification
+- ✅ Spatial proximity validation infrastructure
+- ✅ 40/40 unit tests passing
+- ⚠️ Performance needs optimization (52s vs <20s target)
+
 **Performance:**
-- Processing time: ~14 seconds per sheet
+- Processing time: ~14 seconds per sheet (Phase 1+2+2.1)
+- With quality checks: ~53 seconds per sheet (needs optimization)
 - Overall accuracy: 75-85% (Phase 1) + 99% filtering (Phase 2.1)
 - False negatives on critical items: 0%
 
 ### What Doesn't Work Yet
 
-- ❌ Phases 3-6 (not implemented)
+- ❌ Phase 3 (North arrow/scale - deferred, not feasible with template matching)
+- ❌ Phase 5 (Confidence scoring - may not be needed)
+- ❌ Phase 6 (Machine learning - only if rule-based <70%)
 - ❌ PDF annotation/markup
 - ❌ Advanced batch processing
 - ❌ Form integration
@@ -136,35 +147,55 @@ Detects and classifies lines as solid or dashed to verify contour conventions.
 
 ---
 
-### Phase 3: Spatial Reasoning ⏳
-**Status:** Not Started | **Priority:** Medium
+### Phase 3: North Arrow & Scale Detection ❌
+**Status:** DEFERRED (Phase 1.3.2) | **Priority:** Low
 
-Analyze geometric relationships between features (distances, angles, containment).
+Attempted template matching for north arrow and scale bar detection.
 
-**Planned Features:**
-- Feature proximity validation
-- Spatial consistency checks
-- Geometric relationship analysis
+**Investigation Results:**
+- Template matching not reliable (<60% confidence)
+- False positives on geometric features (borders, intersections)
+- Time investment (3 hours) >> potential savings (6 min/year)
+- **Decision:** Defer - visual confirmation by engineer is faster (5-10 seconds)
 
-**Decision:** May not be needed if current accuracy (75-85% + 99% filtering) is sufficient.
+**Lessons Learned:**
+- Template matching struggles with: small symbols, complex backgrounds, variable scales/rotations
+- Know when to stop: After 3 hours with no progress, reassess value
+- Focus on ROI: 6 minutes/year savings doesn't justify weeks of development
 
-**Documentation:** [phase-3/README.md](phase-3/README.md)
+**Documentation:** [phase-3/phase-1.3.2/RESULTS.md](phase-3/phase-1.3.2/RESULTS.md)
 
 ---
 
-### Phase 4: Fuzzy Matching ⏳
-**Status:** Not Started | **Priority:** Medium
+### Phase 4: Quality Checks (Lite) ✅
+**Status:** Complete - Needs Optimization | **Completion:** 2025-11-02
 
-Advanced text matching for variations, abbreviations, and typos.
+Detects overlapping labels and validates spatial relationships for QC.
 
-**Planned Features:**
-- Enhanced fuzzy matching algorithms
-- Abbreviation handling
-- Typo tolerance
+**What's Implemented:**
+- ✅ Overlapping label detection (bounding box intersection)
+- ✅ Critical/warning/minor severity classification (>50%, 20-50%, <20%)
+- ✅ Spatial proximity validation infrastructure
+- ✅ 40/40 unit tests passing (100% pass rate)
+- ✅ Integration into validator.py workflow
 
-**Decision:** Phase 1 already has basic fuzzy matching; enhancement may not be needed.
+**Test Results (Entrada East page 26):**
+- Total overlaps detected: 34 (10 critical, 9 warning, 15 minor)
+- Text elements analyzed: 388
+- Processing time: 52.7 seconds @ 150 DPI
+- **Issue:** Many overlaps are OCR artifacts (need filtering)
+- **Issue:** Processing time exceeds target (52s vs <20s)
 
-**Documentation:** [phase-4/README.md](phase-4/README.md)
+**What's Deferred:**
+- ❌ Legend verification (low ROI, template matching unreliable)
+- ❌ Symbol standardization (low ROI)
+
+**Next Steps:**
+- Optimize performance (share OCR pass between phases)
+- Filter OCR noise (single chars, special chars)
+- Test on diverse sheets to measure false positive rate
+
+**Documentation:** [phase-4/README.md](phase-4/README.md) | [phase-4/PLAN.md](phase-4/PLAN.md) | [phase-4/IMPLEMENTATION.md](phase-4/IMPLEMENTATION.md)
 
 ---
 

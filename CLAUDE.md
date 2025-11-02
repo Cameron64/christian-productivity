@@ -82,7 +82,10 @@ christian-productivity/
 │   │   ├── phase-1/             # Text/label detection (complete)
 │   │   ├── phase-2/             # Line detection (complete)
 │   │   │   └── phase-2.1/       # Spatial filtering (complete)
-│   │   └── phase-3/ through phase-6/  # Future phases
+│   │   ├── phase-3/             # North arrow/scale (deferred)
+│   │   │   └── phase-1.3.2/     # Investigation results
+│   │   ├── phase-4/             # Quality checks (complete, needs optimization)
+│   │   └── phase-5/ through phase-6/  # Future phases
 │   ├── subdivision-code/        # Austin code references
 │   │   ├── README.md            # Overview of code structure
 │   │   ├── primary-code-sections.md     # Title 25 & 30 details
@@ -109,8 +112,12 @@ christian-productivity/
 │   └── performance/             # Performance benchmarks
 │
 ├── tools/                       # Automation tools
-│   └── esc-validator/           # ESC sheet validation tool (PRODUCTION v0.2.1)
+│   └── esc-validator/           # ESC sheet validation tool (PRODUCTION v0.3.0)
 │       ├── esc_validator/       # Source code
+│       │   ├── text_detector.py      # Phase 1 text detection
+│       │   ├── symbol_detector.py    # Phase 2 line detection
+│       │   ├── quality_checker.py    # Phase 4 quality checks (NEW)
+│       │   └── validator.py          # Main orchestration
 │       ├── templates/           # Visual detection templates
 │       ├── validate_esc.py      # CLI interface
 │       └── README.md            # User guide
@@ -132,11 +139,11 @@ christian-productivity/
 
 ## Active Project: ESC Sheet Validator
 
-**Status:** ✅ **Production Ready (v0.2.1)**
-**Completion Date:** 2025-11-01
-**Phases Complete:** 1, 2, 2.1 (7 total phases including sub-phases)
+**Status:** ✅ **Production Ready (v0.3.0)** - With Quality Checks
+**Completion Date:** 2025-11-02
+**Phases Complete:** 1, 2, 2.1, 3 (deferred), 4 (needs optimization)
 
-**Goal:** Automatically validate Erosion and Sediment Control (ESC) sheets against a 16-item checklist.
+**Goal:** Automatically validate Erosion and Sediment Control (ESC) sheets against checklist items and detect quality issues.
 
 **Documentation:**
 - **User Guide:** [tools/esc-validator/README.md](tools/esc-validator/README.md)
@@ -152,8 +159,11 @@ christian-productivity/
 - ✅ Classifies lines as solid/dashed (70-80% accuracy)
 - ✅ **99% false positive reduction on contour detection** (Phase 2.1)
 - ✅ Spatial proximity filtering for true contours
+- ✅ **NEW: Overlapping label detection** (Phase 4)
+- ✅ **NEW: Spatial proximity validation infrastructure** (Phase 4)
 - ✅ JSON + Markdown reports with confidence scores
-- ✅ Processing time: ~14 seconds per sheet
+- ✅ Processing time: ~14 seconds per sheet (without quality checks)
+- ⚠️ Processing time: ~53 seconds with quality checks (needs optimization)
 
 **Achieved ROI:**
 - Current time: 15-20 min per ESC sheet review
@@ -180,11 +190,11 @@ christian-productivity/
 ## Completed Projects
 
 ### 1. ESC Sheet Validator ✅
-**Status:** Production Ready (v0.2.1)
-**Time Invested:** ~8-12 hours total
-**Phases Complete:** 1, 2, 2.1
-**Accuracy:** 75-85% + 99% contour filtering
-**Estimated Savings:** 8+ hours/year
+**Status:** Production Ready (v0.3.0) - With Quality Checks
+**Time Invested:** ~18-20 hours total (Phases 1, 2, 2.1, 3, 4)
+**Phases Complete:** 1, 2, 2.1, 3 (deferred), 4 (needs optimization)
+**Accuracy:** 75-85% + 99% contour filtering + overlap detection (TBD)
+**Estimated Savings:** 8+ hours/year (could increase with quality checks)
 **ROI:** Positive (savings exceed investment in first year)
 
 ---
@@ -567,7 +577,7 @@ When working on Christian's projects:
 
 ---
 
-**Last Updated:** 2025-11-02 (after test architecture implementation)
-**Current Version:** ESC Validator v0.2.1 (Production Ready)
+**Last Updated:** 2025-11-02 (after Phase 4 implementation)
+**Current Version:** ESC Validator v0.3.0 (Production Ready with Quality Checks)
 **Project Owner:** Christian (Civil Engineer)
 **AI Assistant:** Claude (via Claude Code)

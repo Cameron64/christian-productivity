@@ -18,6 +18,7 @@ from .text_detector import (
     extract_text_from_image
 )
 from .symbol_detector import verify_contour_conventions
+from .quality_checker import QualityChecker, QualityCheckResults
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -87,13 +88,14 @@ def validate_esc_sheet(
     dpi: int = 300,
     save_images: bool = False,
     output_dir: Optional[str] = None,
-    enable_line_detection: bool = False
+    enable_line_detection: bool = False,
+    enable_quality_checks: bool = False
 ) -> Dict[str, any]:
     """
-    Complete ESC sheet validation workflow (Phase 1 + Phase 2).
+    Complete ESC sheet validation workflow (Phase 1 + Phase 2 + Phase 4).
 
     Extracts ESC sheet, runs text detection, verifies minimum quantities,
-    and optionally validates line types (contours).
+    optionally validates line types (contours), and optionally runs quality checks.
 
     Args:
         pdf_path: Path to the PDF file
@@ -103,6 +105,7 @@ def validate_esc_sheet(
         save_images: Whether to save extracted/preprocessed images (default: False)
         output_dir: Directory to save images (if save_images=True)
         enable_line_detection: Enable Phase 2 line type detection (default: False)
+        enable_quality_checks: Enable Phase 4 quality checks (default: False)
 
     Returns:
         Dictionary containing:
@@ -112,14 +115,17 @@ def validate_esc_sheet(
         - quantity_results: Dict[str, bool] - Minimum quantity verification
         - summary: Dict - Summary statistics
         - line_verification: Dict - Contour line verification (if enable_line_detection=True)
+        - quality_checks: Dict - Quality check results (if enable_quality_checks=True)
         - errors: List[str] - Any errors encountered
 
     Example:
-        >>> results = validate_esc_sheet("project_drawings.pdf")
+        >>> results = validate_esc_sheet("project_drawings.pdf", enable_quality_checks=True)
         >>> if results["success"]:
         ...     print(f"Validation complete: {results['summary']['pass_rate']:.1%} passed")
         ...     if results["summary"]["critical_failures"]:
         ...         print(f"CRITICAL: {results['summary']['critical_failures']}")
+        ...     if results.get("quality_checks"):
+        ...         print(f"Quality issues: {results['quality_checks']['total_issues']}")
     """
     logger.info(f"Starting ESC sheet validation for: {pdf_path}")
 
@@ -221,8 +227,70 @@ def validate_esc_sheet(
             logger.warning(f"Line verification failed: {e}")
             errors.append(f"Line verification error: {e}")
 
-    # Step 6: Generate summary
-    step_num = 6 if enable_line_detection else 5
+    # Step 6: Quality checks (Phase 4 - optional)
+    quality_check_results = None
+    if enable_quality_checks:
+        step_num = 6 if enable_line_detection else 5
+        logger.info(f"Step {step_num}: Running quality checks (Phase 4)")
+        try:
+            quality_checker = QualityChecker(
+                min_text_confidence=40.0,
+                min_overlap_severity="minor"
+            )
+
+            # Run quality checks (no features yet - proximity validation skipped for now)
+            qc_results = quality_checker.check_quality(
+                image=preprocessed_image,
+                features=None  # TODO: Extract features for proximity validation
+            )
+
+            # Convert to dict for JSON serialization
+            quality_check_results = {
+                "total_issues": qc_results.total_issues,
+                "overlapping_labels": {
+                    "total": len(qc_results.overlapping_labels),
+                    "critical": qc_results.critical_overlaps,
+                    "warning": qc_results.warning_overlaps,
+                    "issues": [
+                        {
+                            "text1": issue.text1,
+                            "text2": issue.text2,
+                            "overlap_percent": round(issue.overlap_percent, 1),
+                            "severity": issue.severity,
+                            "location": issue.location
+                        }
+                        for issue in qc_results.overlapping_labels
+                    ]
+                },
+                "proximity_validation": {
+                    "total": len(qc_results.proximity_issues),
+                    "errors": qc_results.proximity_errors,
+                    "warnings": qc_results.proximity_warnings,
+                    "issues": [
+                        {
+                            "label_text": issue.label_text,
+                            "label_type": issue.label_type,
+                            "nearest_distance": issue.nearest_distance,
+                            "expected_max": issue.expected_max,
+                            "severity": issue.severity
+                        }
+                        for issue in qc_results.proximity_issues
+                    ]
+                }
+            }
+
+            # Add warnings for critical quality issues
+            if qc_results.critical_overlaps > 0:
+                errors.append(f"WARNING: {qc_results.critical_overlaps} critical overlapping labels found")
+            if qc_results.proximity_errors > 0:
+                errors.append(f"WARNING: {qc_results.proximity_errors} spatial placement errors found")
+
+        except Exception as e:
+            logger.warning(f"Quality checks failed: {e}")
+            errors.append(f"Quality checks error: {e}")
+
+    # Step 7: Generate summary
+    step_num = 7 if enable_quality_checks else (6 if enable_line_detection else 5)
     logger.info(f"Step {step_num}: Generating summary")
     summary = get_checklist_summary(detection_results)
 
@@ -236,6 +304,8 @@ def validate_esc_sheet(
     success = True
 
     logger.info(f"Validation complete: {summary['passed']}/{summary['total']} checks passed")
+    if quality_check_results:
+        logger.info(f"Quality checks: {quality_check_results['total_issues']} issues found")
 
     result = {
         "success": success,
@@ -250,6 +320,10 @@ def validate_esc_sheet(
     # Add line verification if enabled
     if line_verification is not None:
         result["line_verification"] = line_verification
+
+    # Add quality checks if enabled
+    if quality_check_results is not None:
+        result["quality_checks"] = quality_check_results
 
     return result
 
