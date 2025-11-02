@@ -51,22 +51,33 @@ Before extracting pages from PDFs or creating new screenshots:
 
 **Quick Commands:**
 ```bash
-# Find page 16 screenshots
-find test-screenshots/ -name "*page_16*"
+# Find by feature (recommended)
+ls test-screenshots/entrada-east-08.07.2025/esc-notes/      # ESC validation
+ls test-screenshots/entrada-east-08.07.2025/north-arrow/    # North arrow detection
+ls test-screenshots/entrada-east-08.07.2025/contours/       # Contour testing
+ls test-screenshots/entrada-east-08.07.2025/title-blocks/   # Metadata extraction
+ls test-screenshots/entrada-east-08.07.2025/previews/       # Quick previews
 
-# List all Entrada East screenshots
-ls test-screenshots/entrada-east-08.07.2025/
+# Find by page number (if needed)
+find test-screenshots/ -name "*page_16*"    # ESC Notes (page 16)
+find test-screenshots/ -name "*page14*"     # North arrow (page 14)
+find test-screenshots/ -name "*page_3*"     # Contours (page 3)
 
 # Check what's available
 cat test-screenshots/README.md
+cat test-screenshots/entrada-east-08.07.2025/INDEX.md
 ```
 
 **Current Projects:**
-- **Entrada East (08.07.2025)** - 18 screenshots
-  - Page 16: ESC Notes (primary test sheet)
-  - Page 14: Plan sheet with north arrow
-  - Page 3: High-res contour sheet
+- **Entrada East (08.07.2025)** - 18 screenshots (feature-based)
+  - `esc-notes/` - ESC validation (page 16)
+  - `north-arrow/` - Detection testing (page 14, 4 files)
+  - `contours/` - Line detection (pages 3, 14, 2 files)
+  - `title-blocks/` - Metadata extraction (page 3)
+  - `previews/` - Quick reference (10 pages)
   - Full index: `test-screenshots/entrada-east-08.07.2025/INDEX.md`
+
+**Feature-Based Organization:** Screenshots are grouped by testing purpose (ESC notes, north arrow, contours, etc.) rather than page number. This makes it easier to find all screenshots related to a specific feature you're testing.
 
 **Documentation:** See [test-screenshots/README.md](../test-screenshots/README.md)
 

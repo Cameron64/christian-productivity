@@ -25,13 +25,40 @@ This saves processing time and keeps the cache organized.
 ```
 test-screenshots/
 ├── README.md                          # This file
-├── entrada-east-08.07.2025/           # Project-specific screenshots
+├── entrada-east-08.07.2025/           # Project-specific folder
 │   ├── INDEX.md                       # Quick reference index
-│   └── *.png                          # Screenshots
+│   ├── esc-notes/                     # ESC validation sheets
+│   ├── north-arrow/                   # North arrow detection
+│   ├── contours/                      # Contour line testing
+│   ├── title-blocks/                  # Title block extraction
+│   └── previews/                      # Quick reference previews
 └── <future-project-name>/             # Additional projects as needed
     ├── INDEX.md
-    └── *.png
+    ├── esc-notes/                     # Feature-based organization
+    ├── north-arrow/
+    ├── contours/
+    ├── title-blocks/
+    └── previews/
 ```
+
+### Feature-Based Organization ⭐
+
+Screenshots are organized by **testing purpose** (feature) rather than page number:
+
+| Feature Directory | Purpose | Typical Contents |
+|-------------------|---------|------------------|
+| `esc-notes/` | ESC validation sheets | Primary test sheets, critical items |
+| `north-arrow/` | North arrow detection | Symbol detection, template material |
+| `contours/` | Contour line testing | High-res plans, line detection |
+| `title-blocks/` | Metadata extraction | Title blocks, sheet identification |
+| `previews/` | Quick reference | Low-res previews for fast access |
+
+**Why feature-based?**
+- ✅ Find by **use case** not page number
+- ✅ Groups related testing scenarios
+- ✅ Easier to locate "all north arrow screenshots"
+- ✅ Aligns with test workflow (test feature → look in feature directory)
+- ✅ Scales better as screenshot collection grows
 
 ---
 
@@ -66,31 +93,63 @@ Examples:
 
 ### Finding Screenshots
 
+**By Feature (Recommended):**
+```bash
+# ESC validation screenshots
+ls entrada-east-08.07.2025/esc-notes/
+
+# North arrow detection
+ls entrada-east-08.07.2025/north-arrow/
+
+# Contour line testing
+ls entrada-east-08.07.2025/contours/
+
+# Title block extraction
+ls entrada-east-08.07.2025/title-blocks/
+
+# Quick previews
+ls entrada-east-08.07.2025/previews/
+```
+
 **By Page Number:**
 ```bash
 # Find all screenshots of page 16
-find . -name "*page_16*"
+find . -name "*page_16*" -o -name "*page16*"
+# Result: entrada-east-08.07.2025/esc-notes/page_16_screenshot.png
 
 # Find all screenshots of page 14
 find . -name "*page_14*" -o -name "*page14*"
+# Result: north-arrow/*, contours/page14_full_resolution.png, previews/preview_page_14.png
+
+# Find all screenshots from page 3
+find . -name "*page_3*" -o -name "*page3*"
+# Result: contours/page_3_full_resolution.png, title-blocks/page3_title_block.png, etc.
 ```
 
-**By Feature:**
+**By Use Case:**
 ```bash
-# Find north arrow screenshots
-find . -name "*north_arrow*"
+# All high-resolution images (>1 MB)
+find . -name "*.png" -size +1M
 
-# Find title block screenshots
-find . -name "*title_block*"
+# All detection result overlays
+find . -name "*detection*"
 
-# Find ESC notes
-find . -name "*esc_notes*" -o -name "*page_16*"
+# All template material
+find . -name "*region*" -o -name "*template*"
+
+# All previews across projects
+find . -path "*/previews/*.png"
 ```
 
 **By Project:**
 ```bash
-# List all Entrada East screenshots
-ls entrada-east-08.07.2025/
+# List all Entrada East screenshots (by feature)
+ls entrada-east-08.07.2025/*/
+
+# Count screenshots per feature
+for dir in entrada-east-08.07.2025/*/; do
+  echo "$(basename $dir): $(ls $dir | wc -l) files"
+done
 
 # Search within specific project
 find entrada-east-08.07.2025/ -name "*.png"
@@ -110,13 +169,14 @@ Each project has an `INDEX.md` with:
 
 ### 1. Entrada East (08.07.2025)
 - **Source:** `documents/5620-01 Entrada East 08.07.2025 FULL SET-redlines.pdf`
-- **Screenshots:** 18 files
+- **Screenshots:** 18 files (feature-based organization)
 - **Index:** [entrada-east-08.07.2025/INDEX.md](entrada-east-08.07.2025/INDEX.md)
-- **Key Pages:**
-  - Page 16: ESC Notes sheet (primary test sheet)
-  - Page 14: Plan sheet with north arrow
-  - Page 3: Title block and sheet info
-  - Pages 0-4, 14-19: Preview screenshots
+- **Features:**
+  - `esc-notes/` - 1 file (page 16: primary test sheet)
+  - `north-arrow/` - 4 files (page 14: detection testing)
+  - `contours/` - 2 files (pages 3, 14: line detection)
+  - `title-blocks/` - 1 file (page 3: metadata extraction)
+  - `previews/` - 10 files (pages 0-4, 14-19: quick reference)
 
 ---
 
@@ -203,11 +263,33 @@ Screenshots from this cache can be used in:
 ```python
 # tests/conftest.py
 @pytest.fixture(scope="session")
-def entrada_east_page_16():
+def entrada_east_esc_notes():
     """ESC Notes sheet (page 16) from Entrada East project."""
     screenshot_path = (
         PROJECT_ROOT / "tools" / "esc-validator" / "test-screenshots" /
-        "entrada-east-08.07.2025" / "page_16_screenshot.png"
+        "entrada-east-08.07.2025" / "esc-notes" / "page_16_screenshot.png"
+    )
+    if not screenshot_path.exists():
+        pytest.skip("Screenshot not available in cache")
+    return screenshot_path
+
+@pytest.fixture(scope="session")
+def entrada_east_north_arrow_region():
+    """North arrow region for template matching."""
+    screenshot_path = (
+        PROJECT_ROOT / "tools" / "esc-validator" / "test-screenshots" /
+        "entrada-east-08.07.2025" / "north-arrow" / "page14_actual_north_arrow_region.png"
+    )
+    if not screenshot_path.exists():
+        pytest.skip("Screenshot not available in cache")
+    return screenshot_path
+
+@pytest.fixture(scope="session")
+def entrada_east_contours():
+    """High-resolution plan sheet for contour testing."""
+    screenshot_path = (
+        PROJECT_ROOT / "tools" / "esc-validator" / "test-screenshots" /
+        "entrada-east-08.07.2025" / "contours" / "page_3_full_resolution.png"
     )
     if not screenshot_path.exists():
         pytest.skip("Screenshot not available in cache")

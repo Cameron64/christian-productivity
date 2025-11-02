@@ -4,257 +4,436 @@
 **Project:** 5620-01 Entrada East Subdivision
 **Date:** August 7, 2025
 **Total Screenshots:** 18
+**Organization:** Feature-based (by testing purpose)
 
 ---
 
-## Quick Reference
+## Directory Structure
 
-| Screenshot | Page | DPI | Purpose | Size |
-|------------|------|-----|---------|------|
-| `page_16_screenshot.png` | 16 | 150 | **ESC Notes (primary test)** | Standard |
-| `page_3_full_resolution.png` | 3 | 300 | Plan sheet (high-res) | Large |
-| `page3_title_block.png` | 3 | 150 | Title block extraction | Small |
-| `page14_full_resolution.png` | 14 | 300 | Plan sheet with north arrow | Large |
-| `page14_north_arrow_detection.png` | 14 | 150 | North arrow detection test | Medium |
-| `page14_actual_north_arrow_region.png` | 14 | 150 | North arrow closeup | Small |
-| `north_arrow_detection_full.png` | 14 | 150 | Full page north arrow test | Standard |
-| `north_arrow_detection_zoom.png` | 14 | 150 | Zoomed north arrow | Small |
+```
+entrada-east-08.07.2025/
+├── INDEX.md                    # This file
+├── esc-notes/                  # ESC Notes sheet (Page 16)
+│   └── page_16_screenshot.png  # Primary validation test sheet
+├── north-arrow/                # North arrow detection (Page 14)
+│   ├── north_arrow_detection_full.png
+│   ├── north_arrow_detection_zoom.png
+│   ├── page14_actual_north_arrow_region.png
+│   └── page14_north_arrow_detection.png
+├── contours/                   # Contour line testing (Pages 3, 14)
+│   ├── page_3_full_resolution.png
+│   └── page14_full_resolution.png
+├── title-blocks/               # Title block extraction (Page 3)
+│   └── page3_title_block.png
+└── previews/                   # Quick reference previews
+    ├── preview_page_0.png      # Cover sheet
+    ├── preview_page_1.png      # Index
+    ├── preview_page_2.png      # General notes
+    ├── preview_page_3.png      # Plan view
+    ├── preview_page_4.png      # Plan view
+    ├── preview_page_14.png     # Plan view
+    ├── preview_page_15.png     # Plan view
+    ├── preview_page_17.png     # Plan/profile
+    ├── preview_page_18.png     # Plan/profile
+    └── preview_page_19.png     # Plan view
+```
 
 ---
 
-## Page-by-Page Breakdown
+## Quick Reference by Feature
 
-### Cover/Title Pages (Pages 0-4)
+| Feature | Directory | Files | Primary Use Case |
+|---------|-----------|-------|------------------|
+| **ESC Notes Validation** | `esc-notes/` | 1 | Phase 1 text detection, primary test sheet |
+| **North Arrow Detection** | `north-arrow/` | 4 | Visual detection, template matching |
+| **Contour Line Testing** | `contours/` | 2 | Phase 2/2.1 line detection & filtering |
+| **Title Block Extraction** | `title-blocks/` | 1 | Metadata extraction, sheet identification |
+| **Quick Previews** | `previews/` | 10 | Fast reference, sheet type detection |
 
-**preview_page_0.png**
-- **Page:** 0 (Cover sheet)
-- **Content:** Project title, client info, project number
-- **Use Case:** Project identification, metadata extraction
+---
 
-**preview_page_1.png**
-- **Page:** 1
-- **Content:** Index/table of contents
-- **Use Case:** Sheet navigation reference
+## Feature Directories
 
-**preview_page_2.png**
-- **Page:** 2
-- **Content:** General notes
-- **Use Case:** Text extraction testing
+### 1. ESC Notes (`esc-notes/`)
 
-**preview_page_3.png**
-- **Page:** 3
-- **Content:** Plan view
-- **Use Case:** Quick preview for sheet type detection
+**Purpose:** Primary validation test sheet for ESC checklist items
 
-**preview_page_4.png**
-- **Page:** 4
-- **Content:** Plan view continuation
-- **Use Case:** Quick preview
+**page_16_screenshot.png**
+- **Page:** 16
+- **DPI:** 150
+- **Size:** ~525 KB
+- **Content:** Complete ESC Notes sheet
+- **Primary Use Cases:**
+  - **Phase 1 Testing:** Text detection (12+ checklist elements)
+  - **Critical Items:** SCE and CONC WASH detection
+  - **Legend Verification:** Scale bar, north arrow, legend
+  - **OCR Accuracy:** Clean text extraction
+  - **Sheet Type Detection:** Identify as "notes" type
+  - **Street Labeling:** Should detect 0 streets (notes sheet)
 
-### Page 3 - Plan Sheet (Full Detail)
+**Key Elements:**
+- North arrow symbol ✓
+- Scale bar ✓
+- Legend ✓
+- "EROSION AND SEDIMENT CONTROL NOTES" title ✓
+- SCE (Silt Fence) markers - 3+ instances ✓
+- CONC WASH markers - 1+ instances ✓
+- Storm drain inlet protection ✓
+- Construction sequence notes ✓
+
+**Test Commands:**
+```bash
+# Use in validation
+python validate_esc.py --image esc-notes/page_16_screenshot.png
+
+# Quick view
+find esc-notes/ -name "*.png"
+```
+
+---
+
+### 2. North Arrow (`north-arrow/`)
+
+**Purpose:** Visual detection and template matching for north arrow symbol
+
+**north_arrow_detection_full.png**
+- **Page:** 14
+- **DPI:** 150
+- **Size:** ~4.5 MB
+- **Content:** Full page with north arrow detection overlay
+- **Use Cases:**
+  - Algorithm validation
+  - Confidence score visualization
+  - Debug detection failures
+
+**north_arrow_detection_zoom.png**
+- **DPI:** 150
+- **Size:** ~24 KB
+- **Content:** Zoomed view of detected north arrow
+- **Use Cases:**
+  - Detailed inspection
+  - Template refinement
+  - Debug false positives
+
+**page14_actual_north_arrow_region.png**
+- **DPI:** 150
+- **Size:** ~113 KB
+- **Content:** Closeup of north arrow symbol only
+- **Use Cases:**
+  - **Template creation/refinement**
+  - Symbol detection testing
+  - Visual comparison with template
+
+**page14_north_arrow_detection.png**
+- **DPI:** 150
+- **Size:** ~6 KB
+- **Content:** Detection result visualization
+- **Use Cases:**
+  - Quick validation check
+  - Detection overlay
+
+**Test Commands:**
+```bash
+# Find north arrow screenshots
+ls north-arrow/
+
+# Test detection
+python -c "from esc_validator.symbol_detector import detect_north_arrow; \
+detect_north_arrow('north-arrow/page14_actual_north_arrow_region.png')"
+```
+
+**Phase Reference:** Phase 1.3 (Visual Detection)
+
+---
+
+### 3. Contours (`contours/`)
+
+**Purpose:** Line detection, classification, and spatial filtering
 
 **page_3_full_resolution.png**
+- **Page:** 3
 - **DPI:** 300
-- **Size:** Large (~2-5 MB)
-- **Content:** Complete plan sheet with streets, lots, contours
+- **Size:** ~4.5 MB
+- **Content:** High-resolution plan sheet with streets, lots, contours
 - **Use Cases:**
+  - **Phase 2:** Line detection (solid vs dashed)
+  - **Phase 2.1:** Spatial filtering (857 → 9 contours)
   - Street labeling verification
-  - Contour line detection
-  - High-resolution OCR testing
-  - Visual detection debugging
+  - Contour convention testing
+  - High-resolution OCR
+
+**page14_full_resolution.png**
+- **Page:** 14
+- **DPI:** 300
+- **Size:** ~1.2 MB
+- **Content:** High-resolution plan sheet
+- **Use Cases:**
+  - Alternative contour testing
+  - Full sheet validation
+  - High-resolution feature detection
+
+**Test Commands:**
+```bash
+# Phase 2: Line detection
+python test_phase_2.py --image contours/page_3_full_resolution.png
+
+# Phase 2.1: Spatial filtering
+python test_phase_2_1.py --image contours/page_3_full_resolution.png --max-distance 150
+
+# Quick view all contour sheets
+ls contours/
+```
+
+**Expected Results (page 3):**
+- Total lines: 800-900 (before filtering)
+- Filtered contours: 5-15 (after Phase 2.1)
+- Solid lines: Proposed contours
+- Dashed lines: Existing contours
+
+**Phase Reference:** Phase 2 (Line Detection), Phase 2.1 (Spatial Filtering)
+
+---
+
+### 4. Title Blocks (`title-blocks/`)
+
+**Purpose:** Metadata extraction and sheet identification
 
 **page3_title_block.png**
+- **Page:** 3
 - **DPI:** 150
-- **Size:** Small (<1 MB)
+- **Size:** ~68 KB
 - **Content:** Title block only (bottom-right corner)
 - **Use Cases:**
   - Sheet number extraction
   - Project info extraction
-  - Quick reference for sheet identification
+  - Engineer seal detection
+  - Date verification
+  - Quick reference for sheet ID
 
-### Page 14 - North Arrow Testing
+**Extractable Information:**
+- Sheet number
+- Sheet title
+- Project name
+- Project number
+- Date
+- Engineer name
+- Company name
 
-**page14_full_resolution.png**
-- **DPI:** 300
-- **Size:** Large (~2-5 MB)
-- **Content:** Complete plan sheet
-- **Use Cases:**
-  - Full sheet validation
-  - High-resolution feature detection
-
-**page14_north_arrow_detection.png**
-- **DPI:** 150
-- **Size:** Medium (~1-2 MB)
-- **Content:** Full page with north arrow highlighted/annotated
-- **Use Cases:**
-  - Visual detection validation
-  - Debug north arrow detection algorithm
-  - Template matching testing
-
-**page14_actual_north_arrow_region.png**
-- **DPI:** 150
-- **Size:** Small (<500 KB)
-- **Content:** Closeup of north arrow symbol only
-- **Use Cases:**
-  - Template creation/refinement
-  - Symbol detection testing
-  - Visual comparison
-
-**north_arrow_detection_full.png**
-- **DPI:** 150
-- **Size:** Standard (~1 MB)
-- **Content:** Full page with detection overlay
-- **Use Cases:**
-  - Algorithm validation
-  - Confidence score visualization
-
-**north_arrow_detection_zoom.png**
-- **DPI:** 150
-- **Size:** Small (<500 KB)
-- **Content:** Zoomed view of detected north arrow
-- **Use Cases:**
-  - Detailed inspection
-  - Debug false positives/negatives
-
-### Page 15-19 - Additional Plan Sheets
-
-**preview_page_14.png**
-- **Page:** 14
-- **Content:** Quick preview
-- **Use Case:** Fast reference
-
-**preview_page_15.png**
-- **Page:** 15
-- **Content:** Plan view
-- **Use Case:** Sheet type detection
-
-**preview_page_17.png**
-- **Page:** 17
-- **Content:** Plan/profile sheet
-- **Use Case:** Different sheet type testing
-
-**preview_page_18.png**
-- **Page:** 18
-- **Content:** Plan/profile continuation
-- **Use Case:** Multi-page validation
-
-**preview_page_19.png**
-- **Page:** 19
-- **Content:** Plan view
-- **Use Case:** Additional test cases
-
-### Page 16 - ESC Notes (PRIMARY TEST SHEET)
-
-**page_16_screenshot.png**
-- **DPI:** 150
-- **Size:** Standard (~1 MB)
-- **Content:** **Erosion and Sediment Control Notes sheet**
-- **Use Cases:**
-  - **Primary validation test sheet**
-  - Text detection (12+ checklist items)
-  - OCR accuracy testing
-  - Critical element detection (SCE, CONC WASH)
-  - Legend verification
-  - Scale bar detection
-  - Street labeling (should be 0 for notes sheet)
-  - Phase 1, 2, and 2.1 testing
-
-**Key Elements on Page 16:**
-- North arrow (should be detected)
-- Scale bar (should be detected)
-- Legend (should be detected)
-- "EROSION AND SEDIMENT CONTROL NOTES" title
-- SCE (Silt Fence) markers (critical - 3+ instances)
-- CONC WASH markers (critical - 1+ instances)
-- Storm drain inlet protection
-- Erosion control notes
-- Construction sequence
-- Maintenance requirements
+**Test Commands:**
+```bash
+# Extract metadata
+python -c "from esc_validator.text_detector import extract_text_from_image; \
+import cv2; img = cv2.imread('title-blocks/page3_title_block.png'); \
+print(extract_text_from_image(img))"
+```
 
 ---
 
-## Common Use Cases
+### 5. Previews (`previews/`)
 
-### 1. ESC Validator Testing
-**Primary:** `page_16_screenshot.png`
-```python
-# Phase 1: Text detection
-image = extract_page_as_image("page_16_screenshot.png")
-results = detect_required_labels(image)
-assert results['sce']['detected']
-assert results['conc_wash']['detected']
+**Purpose:** Fast reference and sheet type detection (no heavy processing)
+
+**Quick Preview Index:**
+| File | Page | Content | Sheet Type | Use Case |
+|------|------|---------|------------|----------|
+| `preview_page_0.png` | 0 | Cover sheet | Cover | Project identification |
+| `preview_page_1.png` | 1 | Index/TOC | Index | Navigation reference |
+| `preview_page_2.png` | 2 | General notes | Notes | Text extraction |
+| `preview_page_3.png` | 3 | Plan view | Plan | Sheet type detection |
+| `preview_page_4.png` | 4 | Plan view | Plan | Additional test case |
+| `preview_page_14.png` | 14 | Plan view | Plan | Fast reference |
+| `preview_page_15.png` | 15 | Plan view | Plan | Sheet variety |
+| `preview_page_17.png` | 17 | Plan/profile | Profile | Different type testing |
+| `preview_page_18.png` | 18 | Plan/profile | Profile | Continuation |
+| `preview_page_19.png` | 19 | Plan view | Plan | Additional test |
+
+**Test Commands:**
+```bash
+# Quick preview all sheets
+ls previews/ | sort -V
+
+# Detect sheet types
+for f in previews/*.png; do
+  echo "$f -> $(detect_sheet_type $f)"
+done
 ```
 
-### 2. North Arrow Detection
-**Primary:** `page14_north_arrow_detection.png`, `north_arrow_detection_full.png`
-```python
-# Visual detection testing
-image = extract_page_as_image("page14_full_resolution.png")
-detected = detect_north_arrow(image, template)
-assert detected
+**DPI:** 75-100 (low resolution for speed)
+**Size:** 150-450 KB each
+
+---
+
+## Common Testing Workflows
+
+### 1. Full ESC Validation (Phase 1)
+```bash
+# Primary test
+python validate_esc.py esc-notes/page_16_screenshot.png
+
+# Expected: All checklist items detected
+# Critical: SCE ✓, CONC WASH ✓
+# Accuracy: 75-85%
+```
+
+### 2. North Arrow Detection (Phase 1.3)
+```bash
+# Test detection
+python test_north_arrow.py north-arrow/page14_actual_north_arrow_region.png
+
+# Compare methods
+python test_phase_1_3.py --old-method --new-method
+
+# Expected: Confidence >80%
 ```
 
 ### 3. Contour Line Detection (Phase 2)
-**Primary:** `page_3_full_resolution.png`, `page14_full_resolution.png`
-```python
-# Line detection and classification
-image = extract_page_as_image("page_3_full_resolution.png")
-result = verify_contour_conventions(image, text)
-assert result['total_lines'] > 100
+```bash
+# Detect all lines
+python test_phase_2.py contours/page_3_full_resolution.png
+
+# Expected: 800-900 lines detected
+# Solid: ~100-200 (proposed)
+# Dashed: ~600-700 (existing)
 ```
 
 ### 4. Spatial Filtering (Phase 2.1)
-**Primary:** `page_3_full_resolution.png` (or page 26 if available)
-```python
-# Smart spatial filtering
-image = extract_page_as_image("page_3_full_resolution.png")
-result = verify_contour_conventions_smart(image, text)
-assert len(result['contours']) < 20  # Filtered from hundreds
+```bash
+# Smart filtering
+python test_phase_2_1.py contours/page_3_full_resolution.png --max-distance 150
+
+# Expected: 5-15 contours after filtering
+# Improvement: 98-99% false positive reduction
 ```
 
-### 5. Title Block Extraction
-**Primary:** `page3_title_block.png`
-```python
-# Metadata extraction
-image = extract_page_as_image("page3_title_block.png")
-sheet_num = extract_sheet_number(image)
-assert sheet_num == "3"
-```
+### 5. Sheet Type Detection
+```bash
+# Test sheet type detection
+for dir in esc-notes north-arrow contours previews; do
+  for img in $dir/*.png; do
+    python detect_sheet_type.py "$img"
+  done
+done
 
-### 6. Sheet Type Detection
-**Primary:** `preview_page_*.png` files
-```python
-# Detect if sheet is ESC notes vs plan view
-for page in [3, 14, 15, 16, 17]:
-    image = extract_page_as_image(f"preview_page_{page}.png")
-    sheet_type = detect_sheet_type(image, text)
-    # page 16 should be "notes", others should be "plan"
+# Expected:
+# - esc-notes: "notes"
+# - Others: "plan" or "profile"
 ```
 
 ---
 
-## Screenshot Specifications
+## Search Quick Reference
 
-### Standard Screenshots
-- **DPI:** 150
-- **Format:** PNG (lossless)
-- **Color Space:** RGB
-- **Typical Size:** 1-2 MB
-- **Use:** General testing, OCR, quick reference
+### By Feature
+```bash
+# ESC validation
+ls esc-notes/
 
-### High-Resolution Screenshots
-- **DPI:** 300
-- **Format:** PNG (lossless)
-- **Color Space:** RGB
-- **Typical Size:** 2-5 MB
-- **Use:** Detailed analysis, template creation, debugging
+# North arrow testing
+ls north-arrow/
 
-### Preview Screenshots
-- **DPI:** 75-100
-- **Format:** PNG
-- **Color Space:** RGB
-- **Typical Size:** <500 KB
-- **Use:** Fast preview, sheet type detection, navigation
+# Contour line testing
+ls contours/
+
+# Title block extraction
+ls title-blocks/
+
+# Quick previews
+ls previews/
+```
+
+### By Page Number
+```bash
+# Find all screenshots from page 16
+find . -name "*page_16*"
+# Result: esc-notes/page_16_screenshot.png
+
+# Find all screenshots from page 14
+find . -name "*page14*" -o -name "*page_14*"
+# Result: north-arrow/* and contours/page14_full_resolution.png
+
+# Find all screenshots from page 3
+find . -name "*page_3*" -o -name "*page3*"
+# Result: contours/page_3_full_resolution.png, title-blocks/page3_title_block.png, previews/preview_page_3.png
+```
+
+### By Use Case
+```bash
+# High-resolution images (>1 MB)
+find . -name "*.png" -size +1M
+
+# Preview images only
+ls previews/
+
+# Detection debugging
+ls north-arrow/*detection*
+
+# Template material
+ls north-arrow/*region*
+```
+
+---
+
+## Adding New Screenshots
+
+### When to Add to Each Directory
+
+**esc-notes/**
+- Primary ESC Notes sheets (page 16 or equivalent)
+- Different projects' ESC sheets
+- Different scan qualities for testing
+- Example: `page_16_high_res.png`, `page_16_poor_scan.png`
+
+**north-arrow/**
+- North arrow detection results
+- Template material
+- Different symbol styles
+- Example: `page_5_north_arrow.png`, `north_arrow_style_2.png`
+
+**contours/**
+- High-resolution plan sheets with contours
+- Different contour density examples
+- Challenging cases (tight spacing, curved, etc.)
+- Example: `page_26_dense_contours.png`, `page_8_curved_contours.png`
+
+**title-blocks/**
+- Various title block styles
+- Different companies/engineers
+- Edge cases (missing info, stamps, etc.)
+- Example: `page_5_title_block.png`, `title_block_with_seal.png`
+
+**previews/**
+- Quick reference for any page
+- Sheet type examples
+- Navigation aids
+- Example: `preview_page_25.png`
+
+---
+
+## Naming Conventions
+
+### General Pattern
+`<page_number>_<description>.png` or `<description>_page_<number>.png`
+
+### Examples
+```
+# ESC Notes
+page_16_screenshot.png              # Standard
+page_16_high_res_300dpi.png        # Variant with DPI
+esc_notes_page_16.png              # Alternative format
+
+# North Arrow
+page14_north_arrow_region.png      # Feature specific
+north_arrow_detection_full.png     # Result visualization
+north_arrow_template.png           # Template material
+
+# Contours
+page_3_full_resolution.png         # High-res for processing
+page_3_contours_only.png           # Isolated feature
+page_26_dense_contours.png         # Descriptive case
+
+# Previews
+preview_page_0.png                 # Standard format
+```
 
 ---
 
@@ -266,58 +445,62 @@ If screenshots need to be recreated:
 from esc_validator.extractor import extract_page_as_image
 from PIL import Image
 
-# Source PDF
 pdf_path = "documents/5620-01 Entrada East 08.07.2025 FULL SET-redlines.pdf"
 
-# Primary test sheet (page 16)
-image = extract_page_as_image(pdf_path, page_num=16, dpi=150)
-Image.fromarray(image).save("page_16_screenshot.png")
+# ESC Notes (primary test)
+img = extract_page_as_image(pdf_path, page_num=16, dpi=150)
+Image.fromarray(img).save("esc-notes/page_16_screenshot.png")
 
-# High-resolution for detailed analysis (page 3)
-image = extract_page_as_image(pdf_path, page_num=3, dpi=300)
-Image.fromarray(image).save("page_3_full_resolution.png")
+# High-res contours
+img = extract_page_as_image(pdf_path, page_num=3, dpi=300)
+Image.fromarray(img).save("contours/page_3_full_resolution.png")
 
-# Preview for quick reference
+# North arrow region (crop from page 14)
+img = extract_page_as_image(pdf_path, page_num=14, dpi=150)
+# ... crop to north arrow region ...
+Image.fromarray(img).save("north-arrow/page14_north_arrow_region.png")
+
+# Previews (low-res for speed)
 for page in range(20):
-    image = extract_page_as_image(pdf_path, page_num=page, dpi=75)
-    Image.fromarray(image).save(f"preview_page_{page}.png")
+    img = extract_page_as_image(pdf_path, page_num=page, dpi=75)
+    Image.fromarray(img).save(f"previews/preview_page_{page}.png")
 ```
 
 ---
 
-## Testing History
+## Testing History by Feature
 
-### Phase 1 Testing (Text/Label Detection)
-- **Primary Sheet:** Page 16 (ESC Notes)
-- **Tests:** 12+ checklist elements
-- **Results:** 75-85% accuracy
-- **Critical Elements:** 0% false negatives (SCE, CONC WASH)
+### ESC Notes (Phase 1)
+- **Primary Test Sheet:** page_16_screenshot.png
+- **Accuracy:** 75-85%
+- **Critical Elements:** 0% false negatives
+- **Status:** ✅ Production ready
 
-### Phase 1.3 Testing (Visual Detection)
-- **Primary Sheet:** Page 14 (north arrow)
-- **Tests:** North arrow detection, street counting
-- **Results:** Improved confidence scores, context-aware counting
+### North Arrow (Phase 1.3)
+- **Test Images:** 4 variations from page 14
+- **Method:** ORB → Multi-scale template matching
+- **Improvement:** Significant confidence increase
+- **Status:** ✅ Complete
 
-### Phase 2 Testing (Line Detection)
-- **Primary Sheet:** Page 3 or page 26 (contours)
-- **Tests:** Solid/dashed line classification
-- **Results:** 70-80% accuracy, detected 857 lines
-
-### Phase 2.1 Testing (Spatial Filtering)
-- **Primary Sheet:** Page 26 (or page 3)
-- **Tests:** Contour-specific filtering
-- **Results:** 99% false positive reduction (857 → 9 lines)
+### Contours (Phase 2 + 2.1)
+- **Test Images:** page_3_full_resolution.png (primary)
+- **Phase 2 Results:** 857 lines detected (all types)
+- **Phase 2.1 Results:** 9 contours (filtered)
+- **Improvement:** 98.9% false positive reduction
+- **Status:** ✅ Production ready
 
 ---
 
 ## Related Documentation
 
-- **Main Screenshot README:** [../README.md](../README.md)
-- **ESC Validator:** [../../README.md](../../README.md)
+- **Main Screenshot Cache:** [../README.md](../README.md)
+- **ESC Validator Guide:** [../../README.md](../../README.md)
 - **Test Architecture:** [../../../../docs/testing/TEST_ARCHITECTURE.md](../../../../docs/testing/TEST_ARCHITECTURE.md)
+- **Development Rules:** [../../.claude/CLAUDE.md](../../.claude/CLAUDE.md)
 
 ---
 
 **Created:** 2025-11-02
 **Last Updated:** 2025-11-02
+**Organization:** Feature-based (by testing purpose)
 **Project Status:** Active (primary test document)
