@@ -273,6 +273,121 @@ def detect_street_labels_smart(text: str) -> Tuple[bool, int, List[str]]:
     return detected, count, list(street_names)
 
 
+def verify_street_labeling_complete(
+    image: np.ndarray,
+    text: str,
+    visual_count_func=None
+) -> DetectionResult:
+    """
+    Complete street labeling verification (Phase 1.3).
+
+    Combines text-based label detection with visual street counting
+    to determine if ALL streets are labeled.
+
+    Args:
+        image: Preprocessed image for visual analysis
+        text: Extracted text for label detection
+        visual_count_func: Optional function to count streets visually
+                          If None, only text detection is used
+
+    Returns:
+        DetectionResult with comprehensive street labeling assessment
+    """
+    # Step 1: Detect text labels
+    detected, label_count, street_names = detect_street_labels_smart(text)
+
+    # Step 2: Count streets visually (if function provided)
+    visual_count = None
+    if visual_count_func is not None:
+        try:
+            visual_count, _ = visual_count_func(image, debug=False)
+        except Exception as e:
+            logger.warning(f"Visual street counting failed: {e}")
+            visual_count = None
+
+    # Step 3: Assess completeness
+    if visual_count is None or visual_count == 0:
+        # No visual counting available or no streets on plan
+        # Fall back to text-only detection
+        if detected:
+            return DetectionResult(
+                element="streets",
+                detected=True,
+                confidence=0.8,  # Lower confidence without visual verification
+                count=label_count,
+                matches=street_names,
+                notes=f"Found {label_count} labeled street(s). Visual verification not available."
+            )
+        else:
+            return DetectionResult(
+                element="streets",
+                detected=False,
+                confidence=0.5,
+                count=0,
+                matches=[],
+                notes="No street labels found. This may be an ESC Notes sheet."
+            )
+
+    # Step 4: Calculate coverage
+    # Filter out obviously wrong visual counts (too high = detecting non-streets)
+    if visual_count > 20:
+        logger.warning(f"Visual count very high ({visual_count}) - likely detecting non-street features")
+        # Fall back to text-only
+        return DetectionResult(
+            element="streets",
+            detected=detected,
+            confidence=0.7 if detected else 0.3,
+            count=label_count,
+            matches=street_names,
+            notes=f"Found {label_count} labeled street(s). Visual count unreliable ({visual_count} features detected)."
+        )
+
+    # Calculate label coverage
+    coverage = label_count / visual_count if visual_count > 0 else 0.0
+
+    # Determine detection and confidence
+    if coverage >= 0.9:
+        # Excellent coverage
+        return DetectionResult(
+            element="streets",
+            detected=True,
+            confidence=0.95,
+            count=label_count,
+            matches=street_names,
+            notes=f"Excellent: All {visual_count} streets labeled ({label_count} labels)"
+        )
+    elif coverage >= 0.7:
+        # Good coverage
+        return DetectionResult(
+            element="streets",
+            detected=True,
+            confidence=0.85,
+            count=label_count,
+            matches=street_names,
+            notes=f"Good: {label_count}/{visual_count} streets labeled ({coverage:.0%} coverage)"
+        )
+    elif coverage >= 0.5:
+        # Partial coverage
+        return DetectionResult(
+            element="streets",
+            detected=True,
+            confidence=0.6,
+            count=label_count,
+            matches=street_names,
+            notes=f"Partial: Only {label_count}/{visual_count} streets labeled ({coverage:.0%} coverage)"
+        )
+    else:
+        # Poor coverage
+        return DetectionResult(
+            element="streets",
+            detected=False,
+            confidence=0.4,
+            count=label_count,
+            matches=street_names,
+            notes=f"Incomplete: Only {label_count}/{visual_count} streets labeled ({coverage:.0%} coverage)"
+        )
+
+
 def detect_numeric_labels(text: str, context_keywords: List[str]) -> Tuple[bool, int]:
     """
     Detect numeric labels near context keywords (for contours, lots, blocks).
@@ -308,17 +423,21 @@ def detect_numeric_labels(text: str, context_keywords: List[str]) -> Tuple[bool,
 
 def detect_required_labels(
     image: np.ndarray,
-    checklist_elements: Optional[List[str]] = None
+    checklist_elements: Optional[List[str]] = None,
+    enable_visual_detection: bool = True,
+    template_dir: Optional[Path] = None
 ) -> Dict[str, DetectionResult]:
     """
     Detect all required labels from the ESC checklist.
 
-    This is the main Phase 1 detection function.
+    Phase 1.2 + 1.3: Text detection + visual symbol detection.
 
     Args:
         image: Preprocessed image as numpy array (grayscale)
         checklist_elements: Optional list of specific elements to check.
                            If None, checks all elements.
+        enable_visual_detection: Enable Phase 1.3 visual detection (default: True)
+        template_dir: Directory containing symbol templates (default: None, auto-detect)
 
     Returns:
         Dictionary mapping element names to DetectionResult objects
@@ -328,7 +447,7 @@ def detect_required_labels(
         >>> if results["sce"].detected:
         ...     print(f"Found {results['sce'].count} SCE labels")
     """
-    logger.info("Starting required label detection")
+    logger.info("Starting required label detection (Phase 1.2 + 1.3)")
 
     # Extract all text from image
     full_text = extract_text_from_image(image)
@@ -350,69 +469,128 @@ def detect_required_labels(
 
         keywords = REQUIRED_KEYWORDS[element]
 
-        # Phase 1.2: Smart street name detection
+        # Phase 1.3: Complete street labeling verification (text + visual)
         if element == "streets":
-            detected, count, matches = detect_street_labels_smart(full_text)
+            if enable_visual_detection:
+                # Import here to avoid circular dependency
+                try:
+                    from .symbol_detector import count_streets_on_plan
+                    result = verify_street_labeling_complete(image, full_text, count_streets_on_plan)
+                except ImportError as e:
+                    logger.warning(f"Visual detection unavailable: {e}. Falling back to text-only.")
+                    detected, count, matches = detect_street_labels_smart(full_text)
+                    result = DetectionResult(
+                        element="streets",
+                        detected=detected,
+                        confidence=0.75 if detected else 0.0,
+                        count=count,
+                        matches=matches[:10],
+                        notes=f"Found {count} labeled street(s). Visual verification unavailable."
+                    )
+            else:
+                # Phase 1.2: Text-only detection
+                detected, count, matches = detect_street_labels_smart(full_text)
+                result = DetectionResult(
+                    element="streets",
+                    detected=detected,
+                    confidence=0.75 if detected else 0.0,
+                    count=count,
+                    matches=matches[:10],
+                    notes=f"Found {count} labeled street(s)"
+                )
 
-            # Set confidence based on count
-            if count == 0:
-                confidence = 0.0
-                notes = "No street labels detected"
-            elif count <= 20:  # Reasonable range
-                confidence = 0.75  # Good confidence, but can't verify completeness
-                notes = f"Found {count} labeled street(s)"
-            else:  # Suspiciously high
-                confidence = 0.4
-                detected = False
-                notes = f"Found {count} potential streets - verify manually"
-
-            results[element] = DetectionResult(
-                element=element,
-                detected=detected,
-                confidence=confidence,
-                count=count,
-                matches=matches[:10],  # Show first 10
-                notes=notes
-            )
+            results[element] = result
 
             # Log result
-            status = "✓" if detected else "✗"
-            logger.info(f"{status} {element}: detected={detected}, count={count}, confidence={confidence:.2f}")
+            status = "✓" if result.detected else "✗"
+            logger.info(f"{status} {element}: detected={result.detected}, count={result.count}, confidence={result.confidence:.2f}")
             continue  # Skip normal keyword detection
 
-        # Phase 1.2: North bar detection with limitation notes
+        # Phase 1.3: North arrow symbol detection
         if element == "north_bar":
-            # Phase 1.2: Acknowledge limitation - can't detect graphic symbols
-            # Mark for manual verification
-            north_count = full_text.upper().count('NORTH')
+            if enable_visual_detection:
+                # Try visual symbol detection
+                try:
+                    from .symbol_detector import detect_north_arrow
 
-            if north_count > 50:
-                # Probably false positive from notes
-                detected = False
-                confidence = 0.0
-                notes = "Text-only detection unreliable for graphic symbols. Manual verification required. Symbol detection in Phase 1.3."
-            elif 1 <= north_count <= 10:
-                # Might be present
-                detected = True
-                confidence = 0.3  # Low confidence - could be text or symbol
-                notes = "Possible north arrow detected. Verify manually. Full detection in Phase 1.3."
+                    # Auto-detect template path if not provided
+                    if template_dir is None:
+                        # Assume templates are in same directory as this module
+                        module_dir = Path(__file__).parent
+                        template_path = module_dir.parent / "templates" / "north_arrow.png"
+                    else:
+                        template_path = template_dir / "north_arrow.png"
+
+                    if template_path.exists():
+                        detected, confidence, location = detect_north_arrow(image, template_path)
+
+                        if detected and confidence > 0.5:
+                            # Good detection
+                            notes = f"North arrow symbol detected at {location}" if location else "North arrow symbol detected"
+                        elif detected:
+                            # Low confidence
+                            notes = f"Possible north arrow detected (low confidence: {confidence:.1%})"
+                        else:
+                            # Not detected
+                            notes = "North arrow not detected via symbol matching"
+
+                        results[element] = DetectionResult(
+                            element=element,
+                            detected=detected,
+                            confidence=confidence,
+                            count=1 if detected else 0,
+                            matches=["North arrow symbol"] if detected else [],
+                            notes=notes
+                        )
+                    else:
+                        # Template not found, fall back
+                        logger.warning(f"North arrow template not found: {template_path}")
+                        raise FileNotFoundError("Template not found")
+
+                except (ImportError, FileNotFoundError) as e:
+                    logger.warning(f"Visual north arrow detection unavailable: {e}. Falling back to text-based.")
+                    # Fall through to text-based detection
+                    detected = False
+                    confidence = 0.0
+                    notes = "Symbol detection unavailable. Manual verification required."
+
+                    results[element] = DetectionResult(
+                        element=element,
+                        detected=detected,
+                        confidence=confidence,
+                        count=0,
+                        matches=[],
+                        notes=notes
+                    )
             else:
-                detected = False
-                confidence = 0.0
-                notes = "No north arrow detected via text. Symbol detection available in Phase 1.3."
+                # Phase 1.2: Text-based detection (limited)
+                north_count = full_text.upper().count('NORTH')
 
-            results[element] = DetectionResult(
-                element=element,
-                detected=detected,
-                confidence=confidence,
-                count=north_count if north_count <= 10 else 0,
-                matches=[],
-                notes=notes
-            )
+                if north_count > 50:
+                    detected = False
+                    confidence = 0.0
+                    notes = "Text-only detection unreliable for graphic symbols."
+                elif 1 <= north_count <= 10:
+                    detected = True
+                    confidence = 0.3
+                    notes = "Possible north arrow detected via text. Enable visual detection for better accuracy."
+                else:
+                    detected = False
+                    confidence = 0.0
+                    notes = "No north arrow detected via text. Enable visual detection."
+
+                results[element] = DetectionResult(
+                    element=element,
+                    detected=detected,
+                    confidence=confidence,
+                    count=north_count if north_count <= 10 else 0,
+                    matches=[],
+                    notes=notes
+                )
 
             # Log result
-            status = "✓" if detected else "✗"
-            logger.info(f"{status} {element}: detected={detected}, count={north_count}, confidence={confidence:.2f}")
+            status = "✓" if results[element].detected else "✗"
+            logger.info(f"{status} {element}: detected={results[element].detected}, confidence={results[element].confidence:.2f}")
             continue  # Skip normal keyword detection
 
         # Special handling for numeric labels (contours, lot/block)
