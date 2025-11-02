@@ -9,7 +9,7 @@
 ## Directory Structure
 
 ```
-docs/phases/
+docs/epics/1-initial-implementation/phases/
 ├── CLAUDE.md                     # This file - AI assistant guide
 ├── README.md                     # Overview and phase tracker (see below)
 │
@@ -36,18 +36,28 @@ docs/phases/
 │       ├── SUMMARY.md            # Executive summary
 │       └── TEST_REPORT.md        # Test results
 │
-├── phase-3/                      # Phase 3: Future (not started)
+├── phase-3/                      # Phase 3: North arrow/scale (deferred)
+│   ├── README.md                 # Phase 3 summary
+│   ├── PLAN.md                   # Original plan
+│   ├── RESULTS.md                # Investigation results
+│   └── phase-1.3.2/              # Detailed investigation
+│       ├── PLAN.md               # Investigation plan
+│       └── RESULTS.md            # Why deferred
+│
+├── phase-4/                      # Phase 4: Quality checks (complete)
+│   ├── README.md                 # Phase 4 summary
+│   ├── PLAN.md                   # Implementation plan
+│   └── IMPLEMENTATION.md         # Technical details
+│
+├── phase-5/                      # Phase 5: Confidence scoring (not started)
 │   └── README.md                 # Placeholder
 │
-├── phase-4/                      # Phase 4: Future (not started)
-│   └── README.md                 # Placeholder
-│
-├── phase-5/                      # Phase 5: Future (not started)
-│   └── README.md                 # Placeholder
-│
-└── phase-6/                      # Phase 6: Future (optional ML)
+└── phase-6/                      # Phase 6: ML enhancements (see Epic 2)
     └── README.md                 # Placeholder
 ```
+
+**Note:** Machine Learning enhancements are now tracked in Epic 2:
+- `docs/epics/2-ml/` - ML architecture and implementation
 
 ---
 
@@ -57,21 +67,28 @@ docs/phases/
 
 | Phase | Name | Status | Completion Date | Accuracy | Docs |
 |-------|------|--------|-----------------|----------|------|
-| **1** | Text/Label Detection | ✅ Complete | 2025-11-01 | 75-85% | [docs/phases/phase-1/](phase-1/) |
-| **1.1** | Initial Setup | ✅ Complete | 2025-11-01 | - | [docs/phases/phase-1/phase-1.1/](phase-1/phase-1.1/) |
-| **1.2** | Text Improvements | ✅ Complete | 2025-11-01 | - | [docs/phases/phase-1/phase-1.2/](phase-1/phase-1.2/) |
-| **1.3** | Visual Detection | ✅ Complete | 2025-11-01 | - | [docs/phases/phase-1/phase-1.3/](phase-1/phase-1.3/) |
-| **2** | Line Type Detection | ✅ Complete | 2025-11-01 | 70-80% | [docs/phases/phase-2/](phase-2/) |
-| **2.1** | Spatial Filtering | ✅ Complete | 2025-11-01 | **99%** | [docs/phases/phase-2/phase-2.1/](phase-2/phase-2.1/) |
+| **1** | Text/Label Detection | ✅ Complete | 2025-11-01 | 75-85% | [phase-1/](phase-1/) |
+| **1.1** | Initial Setup | ✅ Complete | 2025-11-01 | - | [phase-1/phase-1.1/](phase-1/phase-1.1/) |
+| **1.2** | Text Improvements | ✅ Complete | 2025-11-01 | - | [phase-1/phase-1.2/](phase-1/phase-1.2/) |
+| **1.3** | Visual Detection | ✅ Complete | 2025-11-01 | - | [phase-1/phase-1.3/](phase-1/phase-1.3/) |
+| **2** | Line Type Detection | ✅ Complete | 2025-11-01 | 70-80% | [phase-2/](phase-2/) |
+| **2.1** | Spatial Filtering | ✅ Complete | 2025-11-01 | **99%** | [phase-2/phase-2.1/](phase-2/phase-2.1/) |
+| **3** | North Arrow/Scale | ✅ Deferred | 2025-11-02 | N/A | [phase-3/](phase-3/) |
+| **4** | Quality Checks | ✅ Complete | 2025-11-02 | TBD | [phase-4/](phase-4/) |
 
-### ⏳ Pending Phases
+### ⏳ Pending/Planned Phases
 
 | Phase | Name | Status | Dependencies | Priority |
 |-------|------|--------|--------------|----------|
-| **3** | Spatial Reasoning | ⏳ Not Started | Phase 1, 2 | Medium |
-| **4** | Fuzzy Matching | ⏳ Not Started | Phase 1, 2 | Medium |
 | **5** | Confidence Scoring | ⏳ Not Started | Phase 1-4 | Medium |
-| **6** | Machine Learning | ⏳ Optional | All phases | Low |
+| **6** | Machine Learning (Advanced) | 🔄 See Epic 2 | All phases | Low |
+
+**Note:** ML enhancements (formerly Phase 6) have been expanded into **Epic 2: ML/AI Enhancements**
+- Location: `docs/epics/2-ml/`
+- **Phase 4.1 (PaddleOCR):** [Epic 2 - Phase 4.1](../../2-ml/phases/phase-4.1/PLAN.md) - HIGH priority
+- **Phase 4.2 (ML Filter):** [Epic 2 - Phase 4.2](../../2-ml/phases/phase-4.2/PLAN.md) - MEDIUM priority
+- **Phase 4.3 (YOLO):** Optional symbol detection - LOW priority (deferred)
+- See: [ML Architecture Analysis](../../2-ml/ML_ARCHITECTURE_ANALYSIS.md)
 
 ---
 
@@ -356,7 +373,7 @@ docs/phases/
 
 ---
 
-**Last Updated:** 2025-11-01 (after Phase 2.1 completion)
-**Current Version:** 0.2.1
-**Production Status:** Ready for daily use
-**Next Milestone:** Test on diverse sheets (2-4 weeks)
+**Last Updated:** 2025-11-02 (after Epic reorganization)
+**Current Version:** 0.3.0
+**Production Status:** Ready for daily use (with quality checks)
+**Next Milestone:** ML enhancements (Epic 2) or diverse sheet testing

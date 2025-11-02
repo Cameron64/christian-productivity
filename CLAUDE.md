@@ -76,23 +76,32 @@ christian-productivity/
 │
 ├── docs/                        # Documentation and references
 │   ├── austin-code-formats-analysis.md  # Analysis of available code formats
-│   ├── phases/                  # Phase implementation tracker
-│   │   ├── README.md            # Phase overview and status
-│   │   ├── CLAUDE.md            # AI assistant guide for phases
-│   │   ├── phase-1/             # Text/label detection (complete)
-│   │   ├── phase-2/             # Line detection (complete)
-│   │   │   └── phase-2.1/       # Spatial filtering (complete)
-│   │   ├── phase-3/             # North arrow/scale (deferred)
-│   │   │   └── phase-1.3.2/     # Investigation results
-│   │   ├── phase-4/             # Quality checks (complete, needs optimization)
-│   │   └── phase-5/ through phase-6/  # Future phases
+│   ├── epics/                   # Epic-based organization (NEW)
+│   │   ├── 1-initial-implementation/  # Epic 1: Rule-based CV implementation
+│   │   │   └── phases/          # Phase documentation for Epic 1
+│   │   │       ├── README.md    # Phase overview and status
+│   │   │       ├── CLAUDE.md    # AI assistant guide for phases
+│   │   │       ├── phase-1/     # Text/label detection (complete)
+│   │   │       ├── phase-2/     # Line detection (complete)
+│   │   │       │   └── phase-2.1/  # Spatial filtering (complete)
+│   │   │       ├── phase-3/     # North arrow/scale (deferred)
+│   │   │       │   └── phase-1.3.2/  # Investigation results
+│   │   │       ├── phase-4/     # Quality checks (complete, needs optimization)
+│   │   │       └── phase-5/ through phase-6/  # Future phases
+│   │   └── 2-ml/                # Epic 2: ML/AI enhancements (NEW)
+│   │       ├── CLAUDE.md        # AI assistant guide for ML epic
+│   │       ├── ML_ARCHITECTURE_ANALYSIS.md  # High-level ML architecture
+│   │       ├── IMPLEMENTATION_PLAN.md  # Detailed implementation plan
+│   │       └── phases/          # ML phases
+│   │           ├── phase-4.1/   # PaddleOCR integration (planned)
+│   │           └── phase-4.2/   # ML overlap filter (planned)
 │   ├── subdivision-code/        # Austin code references
 │   │   ├── README.md            # Overview of code structure
 │   │   ├── primary-code-sections.md     # Title 25 & 30 details
 │   │   ├── technical-manuals.md         # DCM, TCM references
 │   │   ├── quick-reference.md           # Topic-based lookups
 │   │   └── access-strategy.md           # How to access codes
-│   └── testing/                 # Testing documentation (NEW)
+│   └── testing/                 # Testing documentation
 │       ├── README.md            # Testing overview
 │       ├── TEST_ARCHITECTURE.md # Complete test architecture
 │       ├── QUICK_START.md       # 5-minute getting started guide
@@ -147,9 +156,10 @@ christian-productivity/
 
 **Documentation:**
 - **User Guide:** [tools/esc-validator/README.md](tools/esc-validator/README.md)
-- **Phase Tracker:** [docs/phases/README.md](docs/phases/README.md)
+- **Phase Tracker:** [docs/epics/1-initial-implementation/phases/README.md](docs/epics/1-initial-implementation/phases/README.md)
 - **Development Guide:** [tools/esc-validator/.claude/CLAUDE.md](tools/esc-validator/.claude/CLAUDE.md)
-- **Phase Documentation:** [docs/phases/](docs/phases/) (detailed implementation docs)
+- **Phase Documentation:** [docs/epics/1-initial-implementation/phases/](docs/epics/1-initial-implementation/phases/) (detailed implementation docs)
+- **ML Architecture:** [docs/epics/2-ml/ML_ARCHITECTURE_ANALYSIS.md](docs/epics/2-ml/ML_ARCHITECTURE_ANALYSIS.md) (ML roadmap)
 
 **What It Does:**
 - ✅ Detects 12+ checklist elements via OCR (75-85% accuracy)
@@ -560,9 +570,10 @@ When working on Christian's projects:
 
 ### ESC Validator Documentation
 - **User Guide:** [tools/esc-validator/README.md](tools/esc-validator/README.md) - How to use the tool
-- **Phase Tracker:** [docs/phases/README.md](docs/phases/README.md) - Phase status and metrics
-- **Phase Details:** [docs/phases/CLAUDE.md](docs/phases/CLAUDE.md) - AI assistant guide for phases
+- **Phase Tracker:** [docs/epics/1-initial-implementation/phases/README.md](docs/epics/1-initial-implementation/phases/README.md) - Phase status and metrics
+- **Phase Details:** [docs/epics/1-initial-implementation/phases/CLAUDE.md](docs/epics/1-initial-implementation/phases/CLAUDE.md) - AI assistant guide for phases
 - **Development Guide:** [tools/esc-validator/.claude/CLAUDE.md](tools/esc-validator/.claude/CLAUDE.md) - Technical details
+- **ML Architecture:** [docs/epics/2-ml/CLAUDE.md](docs/epics/2-ml/CLAUDE.md) - ML enhancement guide
 
 ### Testing Documentation ✅ NEW
 - **Testing Overview:** [docs/testing/README.md](docs/testing/README.md) - Start here for testing

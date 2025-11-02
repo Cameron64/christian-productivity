@@ -9,8 +9,9 @@
 ## Quick Navigation
 
 - **For AI Assistants:** Read [CLAUDE.md](CLAUDE.md) first
-- **For Users:** See main [README](../../tools/esc-validator/README.md)
-- **For Developers:** See [development guide](../../tools/esc-validator/.claude/CLAUDE.md)
+- **For Users:** See main [README](../../../../tools/esc-validator/README.md)
+- **For Developers:** See [development guide](../../../../tools/esc-validator/.claude/CLAUDE.md)
+- **For ML Architecture:** See [Epic 2 ML docs](../../2-ml/)
 
 ---
 
@@ -29,13 +30,18 @@
 | **3** | North Arrow/Scale Detection | 2025-11-02 | - | ❌ **Deferred** (Phase 1.3.2) |
 | **4** | **Quality Checks (Lite)** | 2025-11-02 | **TBD** | ✅ **Complete - Needs Optimization** |
 
-### ⏳ Pending/Deferred Phases (3 phases)
+### ⏳ Pending/Planned Phases (3 phases)
 
 | Phase | Name | Priority | Status | Notes |
 |-------|------|----------|--------|-------|
 | **3** | North Arrow/Scale Detection | Low | ❌ Deferred | Template matching not feasible (Phase 1.3.2) |
 | **5** | Confidence Scoring | Medium | ⏳ Not Started | May not be needed |
-| **6** | Machine Learning | Low | ⏳ Optional | Only if <70% accuracy |
+| **6** | Machine Learning (Advanced) | Low | 🔄 **See Epic 2** | YOLOv8 for symbol detection (optional) |
+
+**Epic 2 (ML/AI Enhancements):** [docs/epics/2-ml/](../../2-ml/)
+- **Phase 4.1:** PaddleOCR integration for better OCR performance (HIGH priority) - [See Epic 2](../../2-ml/phases/phase-4.1/PLAN.md)
+- **Phase 4.2:** Random Forest for overlap artifact filtering (MEDIUM priority) - [See Epic 2](../../2-ml/phases/phase-4.2/PLAN.md)
+- **Phase 4.3:** Optional YOLOv8 for symbol detection (LOW priority - deferred)
 
 ---
 
@@ -197,6 +203,10 @@ Detects overlapping labels and validates spatial relationships for QC.
 
 **Documentation:** [phase-4/README.md](phase-4/README.md) | [phase-4/PLAN.md](phase-4/PLAN.md) | [phase-4/IMPLEMENTATION.md](phase-4/IMPLEMENTATION.md)
 
+**Note:** Phase 4 performance optimization continues in **Epic 2** with ML enhancements:
+- **Phase 4.1 (PaddleOCR):** [Epic 2 - Phase 4.1](../../2-ml/phases/phase-4.1/PLAN.md)
+- **Phase 4.2 (ML Filter):** [Epic 2 - Phase 4.2](../../2-ml/phases/phase-4.2/PLAN.md)
+
 ---
 
 ### Phase 5: Confidence Scoring ⏳
@@ -306,7 +316,7 @@ Current performance meets all targets. Additional phases likely provide diminish
 ## Directory Structure
 
 ```
-docs/phases/
+docs/epics/1-initial-implementation/phases/
 ├── CLAUDE.md                    # AI assistant guide (read this first!)
 ├── README.md                    # This file - phase tracker
 │
@@ -329,8 +339,35 @@ docs/phases/
 │       ├── SUMMARY.md
 │       └── TEST_REPORT.md
 │
-└── phase-3/ through phase-6/    # Future phases (placeholders)
+├── phase-3/                     # Phase 3 (deferred)
+│   ├── README.md
+│   ├── PLAN.md
+│   ├── RESULTS.md
+│   └── phase-1.3.2/
+│
+├── phase-4/                     # Phase 4 (complete)
+│   ├── README.md
+│   ├── PLAN.md
+│   └── IMPLEMENTATION.md
+│
+├── phase-5/                     # Phase 5 (not started)
+│   └── README.md
+│
+└── phase-6/                     # Phase 6 → See Epic 2
     └── README.md
+```
+
+**Epic 2 Structure:**
+```
+docs/epics/2-ml/
+├── CLAUDE.md                    # AI assistant guide for ML epic
+├── ML_ARCHITECTURE_ANALYSIS.md # High-level ML architecture
+├── IMPLEMENTATION_PLAN.md       # Detailed implementation plan
+└── phases/                      # ML enhancement phases
+    ├── phase-4.1/               # PaddleOCR integration (planned)
+    │   └── PLAN.md
+    └── phase-4.2/               # ML Overlap Filter (planned)
+        └── PLAN.md
 ```
 
 ---
@@ -347,13 +384,14 @@ docs/phases/
 
 ## Key Links
 
-- **Main Tool:** [../../tools/esc-validator/](../../tools/esc-validator/)
-- **User Guide:** [../../tools/esc-validator/README.md](../../tools/esc-validator/README.md)
-- **Development Guide:** [../../tools/esc-validator/.claude/CLAUDE.md](../../tools/esc-validator/.claude/CLAUDE.md)
-- **Phase Docs:** This directory
+- **Main Tool:** [../../../../tools/esc-validator/](../../../../tools/esc-validator/)
+- **User Guide:** [../../../../tools/esc-validator/README.md](../../../../tools/esc-validator/README.md)
+- **Development Guide:** [../../../../tools/esc-validator/.claude/CLAUDE.md](../../../../tools/esc-validator/.claude/CLAUDE.md)
+- **Epic 1 Phase Docs:** This directory
+- **Epic 2 ML Docs:** [../../2-ml/](../../2-ml/)
 
 ---
 
-**Last Updated:** 2025-11-01 (after Phase 2.1 completion)
-**Status:** ✅ Production Ready
-**Next Milestone:** Test on diverse sheets (2-4 weeks)
+**Last Updated:** 2025-11-02 (after Epic reorganization and ML architecture)
+**Status:** ✅ Production Ready (v0.3.0)
+**Next Milestone:** ML enhancements (Epic 2) or diverse sheet testing
