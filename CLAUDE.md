@@ -248,6 +248,98 @@ pip install ultralytics paddleocr torch torchvision
 - Unit tests for core functionality
 - Clear documentation in docstrings
 
+### Coding Standards for This Repo
+
+**File Paths:**
+- Use `pathlib.Path` for all file paths, never strings
+- Use relative paths from project root, not absolute paths
+
+**CLI Tools:**
+- Use `argparse` with standard flags: `--verbose`, `--output`, `--help`
+- Always provide clear help text and examples
+- Return meaningful exit codes (0 = success, 1 = error)
+
+**Logging Conventions:**
+- `DEBUG` - Confidence scores, intermediate processing steps
+- `INFO` - Validation results, key processing milestones
+- `WARNING` - Low confidence detections, potential issues
+- `ERROR` - Processing failures, unreadable inputs
+- Include context in log messages: item name, file path, confidence score
+
+**Data Structures:**
+- Use dataclasses for configuration and result objects
+- Type hint all dataclass fields
+- Include docstrings explaining field meanings
+
+### File Size Guidelines & Refactoring Triggers
+
+**Automatic triggers for code review:**
+
+| Metric | Threshold | Action Required |
+|--------|-----------|-----------------|
+| **Lines of code** | > 500 lines | Consider splitting into multiple modules |
+| **File size** | > 15 KB | Review for potential extraction of utilities/helpers |
+| **Token count** | > 10,000 tokens (~1,000-1,500 LOC) | **High priority refactor** - Claude's performance degrades significantly |
+| **Functions per file** | > 15 functions | Extract related functions into separate module |
+
+**When a file hits these thresholds:**
+1. Analyze if the file has multiple responsibilities
+2. Look for natural boundaries (groups of related functions)
+3. Extract utilities, helpers, or validators to new modules
+4. Update imports and run all tests after refactoring
+
+**Proactive monitoring:**
+```powershell
+# Check files approaching limits (PowerShell)
+Get-ChildItem -Recurse -Filter "*.py" |
+  Select-Object FullName, @{N="Lines";E={(Get-Content $_.FullName).Count}} |
+  Where-Object {$_.Lines -gt 400} |
+  Sort-Object Lines -Descending
+```
+
+**Golden Rule:** If you're scrolling more than 2-3 screen heights to navigate a file, it's time to refactor.
+
+### Anti-Patterns to Avoid
+
+**❌ DON'T:**
+
+1. **Load entire 100+ page PDFs into memory**
+   - Extract only the needed pages
+   - Use streaming for large files
+
+2. **Use absolute paths in code**
+   ```python
+   # Bad
+   config = "C:/Users/Christian/project/config.json"
+
+   # Good
+   from pathlib import Path
+   PROJECT_ROOT = Path(__file__).parent.parent
+   config = PROJECT_ROOT / "config.json"
+   ```
+
+3. **Suppress exceptions in validation logic**
+   - Christian needs to see when validation fails
+   - Better to raise and log than silently skip
+
+4. **Use synthetic test data**
+   - Test with real PDFs from Christian's projects
+   - Edge cases matter: handwriting, poor scans, stamps
+
+5. **Hardcode thresholds or magic numbers**
+   ```python
+   # Bad
+   if confidence > 0.7:  # What is 0.7?
+
+   # Good
+   from config import CONFIDENCE_THRESHOLD
+   if confidence > CONFIDENCE_THRESHOLD:
+   ```
+
+6. **Optimize prematurely**
+   - Get accuracy right first
+   - Then optimize if processing is too slow
+
 ---
 
 ## Next Steps

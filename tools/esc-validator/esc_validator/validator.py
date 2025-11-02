@@ -22,6 +22,62 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def validate_sheet_type(detection_results: Dict[str, DetectionResult]) -> Dict[str, any]:
+    """
+    Validate that analyzed sheet is likely an ESC plan (not cover sheet, etc.)
+
+    Checks for ESC-specific features and suspicious patterns that indicate
+    the sheet may not be an actual ESC plan sheet.
+
+    Args:
+        detection_results: Detection results from detect_required_labels()
+
+    Returns:
+        Dictionary with:
+            - is_esc_sheet: bool - Likely ESC sheet?
+            - confidence: float - Confidence in sheet type (0.0 to 1.0)
+            - warnings: List[str] - Validation warnings
+    """
+    warnings = []
+    score = 0
+
+    # Check for ESC-specific features
+    if detection_results.get("silt_fence", DetectionResult("", False, 0.0, 0, [])).detected:
+        score += 3
+    if detection_results.get("sce", DetectionResult("", False, 0.0, 0, [])).detected:
+        score += 3
+    if detection_results.get("conc_wash", DetectionResult("", False, 0.0, 0, [])).detected:
+        score += 3
+    if detection_results.get("loc", DetectionResult("", False, 0.0, 0, [])).detected:
+        score += 2
+
+    # Check for suspicious patterns (cover sheet indicators)
+    for element, result in detection_results.items():
+        if result.count > 50:
+            warnings.append(f"Excessive {element} occurrences ({result.count}) - may not be ESC plan")
+            score -= 2
+
+    # Missing critical ESC features
+    has_esc_features = (
+        detection_results.get("silt_fence", DetectionResult("", False, 0.0, 0, [])).detected or
+        detection_results.get("sce", DetectionResult("", False, 0.0, 0, [])).detected or
+        detection_results.get("conc_wash", DetectionResult("", False, 0.0, 0, [])).detected
+    )
+
+    if not has_esc_features:
+        warnings.append("No ESC-specific features detected - may be wrong sheet type")
+        score -= 5
+
+    is_esc_sheet = score > 0
+    confidence = min(1.0, max(0.0, score / 10.0))
+
+    return {
+        "is_esc_sheet": is_esc_sheet,
+        "confidence": confidence,
+        "warnings": warnings
+    }
+
+
 def validate_esc_sheet(
     pdf_path: str,
     sheet_keyword: str = "ESC",
@@ -125,8 +181,16 @@ def validate_esc_sheet(
     logger.info("Step 3: Verifying minimum quantities")
     quantity_results = verify_minimum_quantities(detection_results)
 
-    # Step 4: Generate summary
-    logger.info("Step 4: Generating summary")
+    # Step 4: Validate sheet type
+    logger.info("Step 4: Validating sheet type")
+    sheet_validation = validate_sheet_type(detection_results)
+
+    # Add sheet validation warnings to errors list
+    if not sheet_validation["is_esc_sheet"]:
+        errors.append("WARNING: This may not be an ESC plan sheet - see validation warnings")
+
+    # Step 5: Generate summary
+    logger.info("Step 5: Generating summary")
     summary = get_checklist_summary(detection_results)
 
     # Check for critical failures
@@ -146,6 +210,7 @@ def validate_esc_sheet(
         "detection_results": detection_results,
         "quantity_results": quantity_results,
         "summary": summary,
+        "sheet_validation": sheet_validation,
         "errors": errors
     }
 

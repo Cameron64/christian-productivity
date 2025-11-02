@@ -6,6 +6,7 @@ images optimized for OCR and computer vision processing.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Tuple, Optional
 import pdfplumber
@@ -18,35 +19,155 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def find_toc_esc_reference(pdf_path: str, max_toc_pages: int = 10) -> Optional[int]:
+    """
+    Find ESC sheet by searching for Table of Contents.
+
+    Looks for TOC/Sheet Index in first few pages and extracts ESC sheet page number.
+    This is much faster and more reliable than scanning the entire PDF.
+
+    Args:
+        pdf_path: Path to the PDF file
+        max_toc_pages: Maximum number of pages to search for TOC (default: 10)
+
+    Returns:
+        Page number (0-indexed) of ESC sheet if found in TOC, None otherwise
+    """
+    logger.info(f"Searching for TOC in first {max_toc_pages} pages")
+
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            pages_to_check = min(max_toc_pages, len(pdf.pages))
+
+            for page_num in range(pages_to_check):
+                page = pdf.pages[page_num]
+                text = page.extract_text() or ""
+                text_upper = text.upper()
+
+                # Check if this page looks like a TOC
+                toc_indicators = ["SHEET INDEX", "DRAWING LIST", "SHEET LIST", "INDEX OF SHEETS", "TABLE OF CONTENTS"]
+                is_toc = any(indicator in text_upper for indicator in toc_indicators)
+
+                if is_toc:
+                    logger.info(f"Found TOC at page {page_num + 1}")
+
+                    # Look for ESC sheet references in TOC
+                    # Pattern: Sheet title with "ESC" or "EROSION" followed by page number
+                    lines = text.split('\n')
+
+                    for i, line in enumerate(lines):
+                        line_upper = line.upper()
+
+                        # Check if line mentions ESC/erosion
+                        if any(keyword in line_upper for keyword in ["ESC", "EROSION", "SEDIMENT CONTROL"]):
+                            logger.debug(f"TOC line: {line}")
+
+                            # Try to extract page number from this line or nearby lines
+                            # Common patterns: "ESC-1 ... 15", "EROSION CONTROL PLAN ... PAGE 15"
+                            # Look for numbers at end of line or in next few lines
+                            page_match = re.search(r'\b(\d{1,3})\b\s*$', line)
+                            if page_match:
+                                toc_page_num = int(page_match.group(1)) - 1  # Convert to 0-indexed
+                                logger.info(f"Found ESC sheet in TOC: page {toc_page_num + 1}")
+                                return toc_page_num
+
+                            # Try next line (sometimes page number is on separate line)
+                            if i + 1 < len(lines):
+                                next_line = lines[i + 1]
+                                page_match = re.search(r'^\s*(\d{1,3})\s*$', next_line)
+                                if page_match:
+                                    toc_page_num = int(page_match.group(1)) - 1
+                                    logger.info(f"Found ESC sheet in TOC: page {toc_page_num + 1}")
+                                    return toc_page_num
+
+    except Exception as e:
+        logger.error(f"Error searching TOC: {e}")
+
+    logger.info("No ESC sheet found in TOC")
+    return None
+
+
 def find_esc_sheet(pdf_path: str, sheet_keyword: str = "ESC") -> Optional[int]:
     """
-    Find the ESC sheet in a PDF drawing set by searching page text.
+    Find ESC sheet using multi-factor scoring algorithm.
+
+    First tries to find ESC sheet via Table of Contents (fast, reliable).
+    If TOC not found or doesn't contain ESC reference, falls back to
+    scanning all pages with weighted scoring.
+
+    Scoring criteria:
+    - High-value (5 pts): ESC + PLAN together, full phrase, sheet number pattern
+    - Medium-value (2 pts): ESC-specific features (silt fence, SCE, washout)
+    - Low-value (1 pt): General keywords (erosion, sediment)
+
+    Minimum score threshold: 10 points
 
     Args:
         pdf_path: Path to the PDF file
         sheet_keyword: Keyword to identify ESC sheet (default: "ESC")
 
     Returns:
-        Page number (0-indexed) of ESC sheet, or None if not found
+        Page number (0-indexed) of best match, or None if no suitable sheet found
     """
     logger.info(f"Searching for ESC sheet in: {pdf_path}")
 
+    # PHASE 1: Try TOC-based detection (fast)
+    toc_page = find_toc_esc_reference(pdf_path)
+    if toc_page is not None:
+        logger.info("Using TOC-based sheet detection (fast path)")
+        return toc_page
+
+    # PHASE 2: Fall back to multi-factor scoring (slower but thorough)
+    logger.info("TOC not found or incomplete - using multi-factor scoring")
+
     try:
+        best_page = None
+        best_score = 0
+
         with pdfplumber.open(pdf_path) as pdf:
             for page_num, page in enumerate(pdf.pages):
                 # Extract text from page
                 text = page.extract_text() or ""
+                text_upper = text.upper()
 
-                # Look for ESC keyword in text (case-insensitive)
-                if sheet_keyword.upper() in text.upper():
-                    # Additional validation: check if it's likely an ESC plan
-                    text_upper = text.upper()
-                    if any(keyword in text_upper for keyword in ["EROSION", "SEDIMENT", "CONTROL", "PLAN"]):
-                        logger.info(f"Found ESC sheet at page {page_num + 1}")
-                        return page_num
+                score = 0
 
-            logger.warning(f"No ESC sheet found with keyword '{sheet_keyword}'")
-            return None
+                # High-value indicators (5 points each)
+                if "ESC" in text_upper and "PLAN" in text_upper:
+                    score += 5
+                if "EROSION AND SEDIMENT CONTROL PLAN" in text_upper:
+                    score += 5
+                # Sheet number patterns: ESC-1, EC-1, ESC 1, etc.
+                if re.search(r'\b(ESC|EC)[-\s]?\d+\b', text_upper):
+                    score += 5
+
+                # Medium-value indicators (2 points each)
+                if "SILT FENCE" in text_upper:
+                    score += 2
+                if "CONSTRUCTION ENTRANCE" in text_upper or "STABILIZED CONSTRUCTION ENTRANCE" in text_upper:
+                    score += 2
+                if "CONCRETE WASHOUT" in text_upper or "WASHOUT" in text_upper:
+                    score += 2
+
+                # Low-value indicators (1 point each)
+                if "EROSION" in text_upper:
+                    score += 1
+                if "SEDIMENT" in text_upper:
+                    score += 1
+
+                # Track best match
+                logger.debug(f"Page {page_num + 1}: score = {score}")
+                if score > best_score:
+                    best_score = score
+                    best_page = page_num
+
+            # Require minimum score threshold
+            if best_score >= 10:
+                logger.info(f"Found ESC sheet at page {best_page + 1} (score: {best_score})")
+                return best_page
+            else:
+                logger.warning(f"No ESC sheet found (best score: {best_score})")
+                return None
 
     except Exception as e:
         logger.error(f"Error reading PDF: {e}")

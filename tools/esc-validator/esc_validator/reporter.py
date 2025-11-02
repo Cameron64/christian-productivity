@@ -67,6 +67,7 @@ def generate_markdown_report(
     detection_results = validation_results["detection_results"]
     quantity_results = validation_results["quantity_results"]
     summary = validation_results["summary"]
+    sheet_validation = validation_results.get("sheet_validation", {})
     errors = validation_results.get("errors", [])
 
     # Build report
@@ -80,6 +81,20 @@ def generate_markdown_report(
     if page_num is not None:
         lines.append(f"**Page Number:** {page_num + 1}")
     lines.append("")
+
+    # Sheet type validation warnings
+    if sheet_validation and not sheet_validation.get("is_esc_sheet", True):
+        lines.append("## ⚠️ Sheet Type Validation Warning")
+        lines.append("")
+        lines.append("**This sheet may not be an ESC plan sheet:**")
+        lines.append("")
+        for warning in sheet_validation.get("warnings", []):
+            lines.append(f"- {warning}")
+        lines.append("")
+        lines.append(f"**Confidence this is ESC sheet:** {format_confidence(sheet_validation.get('confidence', 0.0))}")
+        lines.append("")
+        lines.append("**Recommendation:** Verify this is the correct ESC sheet before relying on results.")
+        lines.append("")
 
     # Overall status
     if not success:
@@ -151,6 +166,19 @@ def generate_markdown_report(
 
         lines.append(f"| {display_name} | {status} | {count_str} | {confidence} | {notes} |")
 
+    lines.append("")
+
+    # Phase 1.2 Limitations
+    lines.append("## Phase 1.2 Limitations")
+    lines.append("")
+    lines.append("**Text-Only Detection:**")
+    lines.append("")
+    lines.append("This report uses Phase 1.2 text-based detection. The following limitations apply:")
+    lines.append("")
+    lines.append("- **North Bar:** Graphic symbols cannot be detected with OCR alone. Manual verification required.")
+    lines.append("- **Streets Labeled:** Can detect labeled street names, but cannot verify if ALL streets are labeled.")
+    lines.append("")
+    lines.append("For complete detection including symbols and visual verification, see Phase 1.3.")
     lines.append("")
 
     # Verbose details

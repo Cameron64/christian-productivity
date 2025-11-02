@@ -7,6 +7,8 @@ Includes fuzzy matching for robust keyword detection.
 
 import logging
 import re
+import sys
+from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 import pytesseract
@@ -16,6 +18,18 @@ from Levenshtein import ratio as levenshtein_ratio
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Configure Tesseract path for Windows
+if sys.platform == "win32":
+    tesseract_paths = [
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+    for path in tesseract_paths:
+        if Path(path).exists():
+            pytesseract.pytesseract.tesseract_cmd = path
+            logger.debug(f"Tesseract found at: {path}")
+            break
 
 
 @dataclass
@@ -176,6 +190,89 @@ def count_keyword_occurrences(text: str, keywords: List[str], fuzzy: bool = True
     return count
 
 
+def is_likely_notes_section(line: str) -> bool:
+    """
+    Determine if line is from notes/text rather than plan labels.
+
+    Notes characteristics:
+    - Long lines (>100 chars)
+    - Mostly lowercase
+    - Contains common note words
+
+    Args:
+        line: Single line of text
+
+    Returns:
+        True if line appears to be from notes section, False otherwise
+    """
+    # Too long = notes
+    if len(line) > 100:
+        return True
+
+    # Count lowercase vs uppercase
+    lowercase_count = sum(1 for c in line if c.islower())
+    uppercase_count = sum(1 for c in line if c.isupper())
+
+    # Mostly lowercase = notes
+    if lowercase_count > uppercase_count * 2:
+        return True
+
+    # Common note indicators
+    note_words = [
+        'shall', 'shall be', 'must', 'contractor', 'the ', 'all ',
+        'requirements', 'standards', 'prior to', 'in accordance'
+    ]
+
+    line_lower = line.lower()
+    if any(word in line_lower for word in note_words):
+        return True
+
+    return False
+
+
+def detect_street_labels_smart(text: str) -> Tuple[bool, int, List[str]]:
+    """
+    Detect actual street name labels using pattern matching.
+
+    Filters out mentions in notes/text and focuses on proper street names.
+
+    Args:
+        text: Full text from OCR
+
+    Returns:
+        Tuple of (detected, count, street_names)
+    """
+    # Street name patterns
+    # Format: "Name + Suffix" in Title Case or ALL CAPS
+    patterns = [
+        # Title Case: "North Loop Blvd"
+        r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(Street|St|Boulevard|Blvd|Drive|Dr|Way|Lane|Ln|Road|Rd|Avenue|Ave|Court|Ct|Circle|Cir|Place|Pl)\b',
+        # ALL CAPS: "WILLIAM CANNON DR"
+        r'\b([A-Z\s]+)\s+(STREET|ST|BOULEVARD|BLVD|DRIVE|DR|WAY|LANE|LN|ROAD|RD|AVENUE|AVE|COURT|CT|CIRCLE|CIR|PLACE|PL)\b'
+    ]
+
+    street_names = set()
+    lines = text.split('\n')
+
+    for line in lines:
+        # Skip notes sections
+        if is_likely_notes_section(line):
+            continue
+
+        # Find street name patterns
+        for pattern in patterns:
+            matches = re.findall(pattern, line)
+            for match in matches:
+                # match is tuple: (name, suffix)
+                full_name = f"{match[0].strip()} {match[1]}"
+                street_names.add(full_name)
+
+    detected = len(street_names) > 0
+    count = len(street_names)
+
+    return detected, count, list(street_names)
+
+
 def detect_numeric_labels(text: str, context_keywords: List[str]) -> Tuple[bool, int]:
     """
     Detect numeric labels near context keywords (for contours, lots, blocks).
@@ -253,6 +350,71 @@ def detect_required_labels(
 
         keywords = REQUIRED_KEYWORDS[element]
 
+        # Phase 1.2: Smart street name detection
+        if element == "streets":
+            detected, count, matches = detect_street_labels_smart(full_text)
+
+            # Set confidence based on count
+            if count == 0:
+                confidence = 0.0
+                notes = "No street labels detected"
+            elif count <= 20:  # Reasonable range
+                confidence = 0.75  # Good confidence, but can't verify completeness
+                notes = f"Found {count} labeled street(s)"
+            else:  # Suspiciously high
+                confidence = 0.4
+                detected = False
+                notes = f"Found {count} potential streets - verify manually"
+
+            results[element] = DetectionResult(
+                element=element,
+                detected=detected,
+                confidence=confidence,
+                count=count,
+                matches=matches[:10],  # Show first 10
+                notes=notes
+            )
+
+            # Log result
+            status = "✓" if detected else "✗"
+            logger.info(f"{status} {element}: detected={detected}, count={count}, confidence={confidence:.2f}")
+            continue  # Skip normal keyword detection
+
+        # Phase 1.2: North bar detection with limitation notes
+        if element == "north_bar":
+            # Phase 1.2: Acknowledge limitation - can't detect graphic symbols
+            # Mark for manual verification
+            north_count = full_text.upper().count('NORTH')
+
+            if north_count > 50:
+                # Probably false positive from notes
+                detected = False
+                confidence = 0.0
+                notes = "Text-only detection unreliable for graphic symbols. Manual verification required. Symbol detection in Phase 1.3."
+            elif 1 <= north_count <= 10:
+                # Might be present
+                detected = True
+                confidence = 0.3  # Low confidence - could be text or symbol
+                notes = "Possible north arrow detected. Verify manually. Full detection in Phase 1.3."
+            else:
+                detected = False
+                confidence = 0.0
+                notes = "No north arrow detected via text. Symbol detection available in Phase 1.3."
+
+            results[element] = DetectionResult(
+                element=element,
+                detected=detected,
+                confidence=confidence,
+                count=north_count if north_count <= 10 else 0,
+                matches=[],
+                notes=notes
+            )
+
+            # Log result
+            status = "✓" if detected else "✗"
+            logger.info(f"{status} {element}: detected={detected}, count={north_count}, confidence={confidence:.2f}")
+            continue  # Skip normal keyword detection
+
         # Special handling for numeric labels (contours, lot/block)
         if element in ["existing_contours", "proposed_contours", "lot_block"]:
             detected, count = detect_numeric_labels(full_text, keywords)
@@ -271,6 +433,14 @@ def detect_required_labels(
                 confidence = min(0.95, 0.9 + (count * 0.01))
 
             notes = ""
+
+            # False positive filtering: excessive occurrences likely from notes/text
+            if count > 50:
+                # Suspiciously high - likely counting text mentions
+                confidence *= 0.3  # Reduce confidence drastically
+                detected = False   # Mark as not detected
+                notes = f"Excessive occurrences ({count}), likely false positive from notes/text"
+                logger.warning(f"{element}: {count} occurrences - likely false positive")
 
         results[element] = DetectionResult(
             element=element,
