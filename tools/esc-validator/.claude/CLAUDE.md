@@ -38,6 +38,40 @@ Other checklist items include:
 
 ---
 
+## Screenshot Cache - Check Before Creating New Images ⚠️
+
+**Location:** `tools/esc-validator/test-screenshots/`
+
+Before extracting pages from PDFs or creating new screenshots:
+
+1. **Check the cache first** - Look in `test-screenshots/<project>/`
+2. **Reuse existing screenshots** - If the page already exists
+3. **Only create new** - If the specific page/view doesn't exist
+4. **Update INDEX.md** - When adding new screenshots
+
+**Quick Commands:**
+```bash
+# Find page 16 screenshots
+find test-screenshots/ -name "*page_16*"
+
+# List all Entrada East screenshots
+ls test-screenshots/entrada-east-08.07.2025/
+
+# Check what's available
+cat test-screenshots/README.md
+```
+
+**Current Projects:**
+- **Entrada East (08.07.2025)** - 18 screenshots
+  - Page 16: ESC Notes (primary test sheet)
+  - Page 14: Plan sheet with north arrow
+  - Page 3: High-res contour sheet
+  - Full index: `test-screenshots/entrada-east-08.07.2025/INDEX.md`
+
+**Documentation:** See [test-screenshots/README.md](../test-screenshots/README.md)
+
+---
+
 ## Architecture Principles
 
 ### Module Organization

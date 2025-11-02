@@ -1,0 +1,4 @@
+/test-screenshots/*.png
+/test-screenshots/*.jpg
+# Allow README in test-screenshots
+!/test-screenshots/README.md
