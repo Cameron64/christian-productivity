@@ -14,6 +14,109 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def detect_north_arrow_multiscale(
+    image: np.ndarray,
+    template_path: Path,
+    scales: tuple = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.5, 2.0),
+    rotation_angles: tuple = (0, 15, 30, 45, -15, -30, -45),
+    threshold: float = 0.6
+) -> Tuple[bool, float, Optional[Tuple[int, int]]]:
+    """
+    Multi-scale, multi-rotation template matching for north arrow detection.
+
+    This method tries template matching at multiple scales (30% to 200%) and
+    rotation angles (±45°) to handle size variations and orientations.
+
+    Args:
+        image: Input image (grayscale or BGR)
+        template_path: Path to north arrow template image
+        scales: Scales to try (default: 0.3 to 2.0)
+        rotation_angles: Rotation angles in degrees (default: ±45°)
+        threshold: Minimum correlation coefficient to consider detection (default: 0.6)
+
+    Returns:
+        Tuple of (detected, confidence, location)
+        - detected: True if north arrow found
+        - confidence: 0.0-1.0 confidence score (correlation coefficient)
+        - location: (x, y) coordinates of detected symbol center, or None if not found
+
+    Example:
+        >>> detected, conf, loc = detect_north_arrow_multiscale(image, Path("templates/north_arrow.png"))
+        >>> if detected:
+        ...     print(f"North arrow found at {loc} with {conf:.1%} confidence")
+    """
+    # Load template
+    if not template_path.exists():
+        logger.error(f"Template not found: {template_path}")
+        return False, 0.0, None
+
+    template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
+    if template is None:
+        logger.error(f"Failed to load template: {template_path}")
+        return False, 0.0, None
+
+    # Convert image to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image
+
+    best_score = 0
+    best_location = None
+    best_scale = 1.0
+    best_angle = 0
+
+    logger.debug(f"Template size: {template.shape}, Image size: {gray.shape}")
+    logger.debug(f"Testing {len(scales)} scales × {len(rotation_angles)} rotations = {len(scales)*len(rotation_angles)} combinations")
+
+    # Try each scale
+    for scale in scales:
+        # Resize template
+        w = int(template.shape[1] * scale)
+        h = int(template.shape[0] * scale)
+
+        # Skip if template would be too small or too large
+        if w < 10 or h < 10 or w > gray.shape[1] or h > gray.shape[0]:
+            continue
+
+        scaled_template = cv2.resize(template, (w, h))
+
+        # Try each rotation
+        for angle in rotation_angles:
+            # Rotate template
+            if angle != 0:
+                center = (w // 2, h // 2)
+                M = cv2.getRotationMatrix2D(center, angle, 1.0)
+                rotated = cv2.warpAffine(scaled_template, M, (w, h), borderValue=255)
+            else:
+                rotated = scaled_template
+
+            # Template matching using normalized correlation
+            result = cv2.matchTemplate(gray, rotated, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+            if max_val > best_score:
+                best_score = max_val
+                # Center point of detected template
+                best_location = (max_loc[0] + w // 2, max_loc[1] + h // 2)
+                best_scale = scale
+                best_angle = angle
+
+    # Determine detection
+    detected = best_score >= threshold
+    confidence = best_score
+
+    logger.info(f"Best match: score={best_score:.3f}, scale={best_scale:.2f}, "
+                f"angle={best_angle}°, location={best_location}")
+
+    if detected:
+        logger.info(f"North arrow detected at {best_location} with confidence {confidence:.2f}")
+    else:
+        logger.info(f"North arrow not detected (best score {best_score:.3f} < threshold {threshold})")
+
+    return detected, confidence, best_location
+
+
 def detect_north_arrow(
     image: np.ndarray,
     template_path: Path,
@@ -21,7 +124,11 @@ def detect_north_arrow(
     max_distance: int = 50
 ) -> Tuple[bool, float, Optional[Tuple[int, int]]]:
     """
-    Detect north arrow symbol using ORB feature matching.
+    Detect north arrow symbol using ORB feature matching (legacy method).
+
+    NOTE: This is the original ORB-based method. For better accuracy, use
+    detect_north_arrow_multiscale() instead, which uses template matching
+    at multiple scales and rotations.
 
     This method is rotation-invariant, so it works even if the north arrow
     is rotated on the drawing.
@@ -768,6 +875,393 @@ def find_labels_near_lines(
     logger.debug(f"Found {len(nearby_labels)} labels near lines")
 
     return nearby_labels
+
+
+def extract_street_label_locations(text: str, image: np.ndarray) -> list:
+    """
+    Use pytesseract with bounding boxes to find where street names are.
+
+    Returns list of (x, y) coordinates where street labels appear.
+
+    Args:
+        text: OCR text (not used, kept for API compatibility)
+        image: Input image for OCR with bounding boxes
+
+    Returns:
+        List of (x, y) tuples indicating center of street label bounding boxes
+    """
+    try:
+        import pytesseract
+    except ImportError:
+        logger.warning("pytesseract not available - cannot extract street label locations")
+        return []
+
+    try:
+        data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+    except Exception as e:
+        logger.error(f"Failed to extract text with locations: {e}")
+        return []
+
+    street_patterns = [
+        r'\b\w+\s+(Street|St|Drive|Dr|Way|Road|Rd|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct)\b'
+    ]
+
+    locations = []
+    for i, word in enumerate(data['text']):
+        import re
+        for pattern in street_patterns:
+            if re.search(pattern, word, re.IGNORECASE):
+                x = data['left'][i] + data['width'][i] // 2
+                y = data['top'][i] + data['height'][i] // 2
+                locations.append((x, y))
+                logger.debug(f"Found street label '{word}' at ({x}, {y})")
+
+    logger.info(f"Found {len(locations)} street label locations")
+    return locations
+
+
+def has_nearby_street_label(
+    line: Tuple[int, int, int, int],
+    label_locations: list,
+    max_distance: int = 200
+) -> bool:
+    """
+    Check if line has a street label within max_distance pixels.
+
+    Args:
+        line: Line coordinates (x1, y1, x2, y2)
+        label_locations: List of (x, y) tuples for street labels
+        max_distance: Maximum distance in pixels (default: 200)
+
+    Returns:
+        True if line has nearby street label, False otherwise
+    """
+    x1, y1, x2, y2 = line
+    line_center = ((x1 + x2) // 2, (y1 + y2) // 2)
+
+    for label_loc in label_locations:
+        dist = np.sqrt((line_center[0] - label_loc[0])**2 +
+                      (line_center[1] - label_loc[1])**2)
+        if dist < max_distance:
+            return True
+
+    return False
+
+
+def is_part_of_rectangle(
+    line: np.ndarray,
+    all_lines: np.ndarray,
+    tolerance: int = 20
+) -> bool:
+    """
+    Check if line is part of a closed rectangle (table border).
+
+    Strategy: Check if this line has perpendicular lines at both ends.
+
+    Args:
+        line: Line to check
+        all_lines: All detected lines
+        tolerance: Distance tolerance for endpoint matching (pixels)
+
+    Returns:
+        True if line appears to be part of a rectangle
+    """
+    x1, y1, x2, y2 = line[0]
+    angle = np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi
+
+    # Find perpendicular lines near endpoints
+    perpendicular_at_start = 0
+    perpendicular_at_end = 0
+
+    for other_line in all_lines:
+        ox1, oy1, ox2, oy2 = other_line[0]
+        other_angle = np.arctan2(oy2 - oy1, ox2 - ox1) * 180 / np.pi
+
+        # Check if perpendicular (90° difference)
+        angle_diff = abs(angle - other_angle)
+        if 80 < angle_diff < 100 or 260 < angle_diff < 280:
+            # Check if near start point
+            if (abs(ox1 - x1) < tolerance and abs(oy1 - y1) < tolerance) or \
+               (abs(ox2 - x1) < tolerance and abs(oy2 - y1) < tolerance):
+                perpendicular_at_start += 1
+
+            # Check if near end point
+            if (abs(ox1 - x2) < tolerance and abs(oy1 - y2) < tolerance) or \
+               (abs(ox2 - x2) < tolerance and abs(oy2 - y2) < tolerance):
+                perpendicular_at_end += 1
+
+    # If has perpendicular lines at both ends, likely part of rectangle
+    return perpendicular_at_start > 0 and perpendicular_at_end > 0
+
+
+def has_parallel_line_nearby(
+    line: np.ndarray,
+    all_lines: np.ndarray,
+    distance_range: Tuple[int, int] = (30, 100),
+    angle_tolerance: float = 10
+) -> bool:
+    """
+    Check if line has a parallel companion line (road edge).
+
+    Args:
+        line: Line to check
+        all_lines: All detected lines
+        distance_range: Min/max distance between parallel lines (pixels)
+        angle_tolerance: Maximum angle difference to consider parallel (degrees)
+
+    Returns:
+        True if line has nearby parallel companion
+    """
+    x1, y1, x2, y2 = line[0]
+    angle = np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi
+
+    for other_line in all_lines:
+        if np.array_equal(line, other_line):
+            continue
+
+        ox1, oy1, ox2, oy2 = other_line[0]
+        other_angle = np.arctan2(oy2 - oy1, ox2 - ox1) * 180 / np.pi
+
+        # Check if parallel
+        angle_diff = abs(angle - other_angle)
+        if angle_diff > 180:
+            angle_diff = 360 - angle_diff
+
+        if angle_diff < angle_tolerance or angle_diff > (180 - angle_tolerance):
+            # Check distance
+            midpoint = ((ox1 + ox2) // 2, (oy1 + oy2) // 2)
+            dist = point_to_line_distance(midpoint, (x1, y1), (x2, y2))
+
+            if distance_range[0] <= dist <= distance_range[1]:
+                return True
+
+    return False
+
+
+def detect_sheet_type(image: np.ndarray, text: str) -> str:
+    """
+    Detect if sheet is a Plan View or Notes Sheet.
+
+    Args:
+        image: Input image (grayscale or BGR)
+        text: Extracted text from OCR
+
+    Returns:
+        "plan", "notes", or "unknown"
+    """
+    text_upper = text.upper()
+
+    # Check 1: Title/header text - look for "ESC NOTES" or similar
+    # Common patterns: "ESC NOTES", "EROSION CONTROL NOTES", "NOTES SHEET"
+    note_title_patterns = ["ESC NOTES", "EROSION CONTROL NOTES", "NOTES SHEET", "GENERAL NOTES"]
+    has_notes_title = any(pattern in text_upper for pattern in note_title_patterns)
+
+    if has_notes_title:
+        logger.info(f"Detected NOTES sheet (title pattern matched)")
+        return "notes"
+
+    # Check 2: Count note occurrences
+    # Notes sheets have MANY numbered notes (NOTE 1, NOTE 2, etc.)
+    note_count = text_upper.count("NOTE")
+    if note_count > 15:  # Increased threshold for higher confidence
+        logger.info(f"Detected NOTES sheet ({note_count} note occurrences)")
+        return "notes"
+
+    # Check 3: Look for plan-specific features
+    plan_indicators = [
+        "MATCH LINE",
+        "STA ",  # Station markers (e.g., "STA 0+00")
+        "PROPOSED",
+        "EXISTING",
+        "CONTOUR",
+        "SCALE",
+    ]
+
+    plan_score = sum(1 for indicator in plan_indicators if indicator in text_upper)
+
+    # Check 4: Visual density
+    # Notes sheets are dense with text
+    # Plan sheets have more white space
+    text_density = calculate_text_density(image)
+
+    logger.debug(f"Sheet type detection: plan_score={plan_score}, text_density={text_density:.2f}, note_count={note_count}")
+
+    # Decision logic
+    if plan_score >= 3 and text_density < 0.4:
+        logger.info(f"Detected PLAN sheet (plan_score={plan_score}, density={text_density:.2f})")
+        return "plan"
+    elif text_density > 0.5 or note_count > 5:  # Lower density threshold OR moderate note count
+        logger.info(f"Detected NOTES sheet (density={text_density:.2f}, notes={note_count})")
+        return "notes"
+    else:
+        logger.info(f"Sheet type UNKNOWN (plan_score={plan_score}, density={text_density:.2f}, notes={note_count})")
+        return "unknown"
+
+
+def calculate_text_density(image: np.ndarray) -> float:
+    """
+    Calculate what % of image is covered by text/dark pixels.
+
+    Args:
+        image: Input image (grayscale or BGR)
+
+    Returns:
+        Text density as float from 0.0 to 1.0
+    """
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+    _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+
+    dark_pixels = np.sum(binary == 0)
+    total_pixels = binary.size
+
+    return dark_pixels / total_pixels
+
+
+def count_streets_contextaware(
+    image: np.ndarray,
+    text: str,
+    debug: bool = False
+) -> Tuple[int, Optional[np.ndarray]]:
+    """
+    Context-aware street counting using multiple signals.
+
+    Strategy:
+    1. Detect all long lines (candidates)
+    2. Filter by street-specific features:
+       - Has nearby street name label
+       - Has parallel companion lines (ROW edges)
+       - Smooth curve or straight (not zigzag)
+       - Not part of closed rectangle (table border)
+    3. Group remaining lines into streets
+    4. Cross-validate with text labels
+
+    Args:
+        image: Input image (grayscale or BGR)
+        text: Extracted text from OCR (for label matching)
+        debug: If True, return visualization image
+
+    Returns:
+        Tuple of (street_count, debug_image)
+    """
+    # Step 1: Detect candidate lines
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+    edges = cv2.Canny(gray, 50, 150)
+
+    lines = cv2.HoughLinesP(
+        edges,
+        rho=1,
+        theta=np.pi / 180,
+        threshold=120,  # Higher threshold
+        minLineLength=800,  # Longer lines only (streets are long)
+        maxLineGap=150
+    )
+
+    if lines is None or len(lines) == 0:
+        logger.debug("No lines detected")
+        return 0, None
+
+    logger.debug(f"Detected {len(lines)} candidate lines")
+
+    # Step 2: Get street name locations from text
+    street_label_locations = extract_street_label_locations(text, image)
+
+    # Step 3: Filter lines by street characteristics
+    street_candidates = []
+
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+
+        # Check 1: Has nearby street label?
+        has_label = has_nearby_street_label(
+            (x1, y1, x2, y2),
+            street_label_locations,
+            max_distance=200
+        )
+
+        # Check 2: Not part of table border?
+        is_table_border = is_part_of_rectangle(line, lines)
+
+        # Check 3: Has parallel companion (road edges)?
+        has_parallel = has_parallel_line_nearby(
+            line, lines,
+            distance_range=(30, 100),
+            angle_tolerance=10
+        )
+
+        # Score this line
+        score = 0
+        if has_label:
+            score += 3  # Most important
+        if has_parallel:
+            score += 2
+        if not is_table_border:
+            score += 1
+
+        if score >= 3:  # Need at least label + parallel OR label + not table
+            street_candidates.append({
+                'line': line,
+                'score': score,
+                'has_label': has_label
+            })
+
+    logger.debug(f"Filtered to {len(street_candidates)} street candidate lines")
+
+    # Step 4: Group candidates into streets
+    street_groups = group_parallel_lines(
+        [c['line'] for c in street_candidates],
+        angle_threshold=15,
+        distance_threshold=100
+    )
+
+    # Step 5: Validate against text labels
+    num_text_labels = len(street_label_locations)
+    visual_count = len(street_groups)
+
+    logger.info(f"Context-aware detection: {visual_count} street groups, {num_text_labels} text labels")
+
+    # Sanity check
+    if visual_count > 20:
+        # Still detecting too many - fall back to text count
+        logger.warning(f"Visual count still high ({visual_count}), using text count")
+        return num_text_labels, None
+
+    # Return whichever is more reliable
+    if num_text_labels > 0:
+        # Text labels found - trust them
+        final_count = num_text_labels
+    else:
+        # No text labels - use visual count
+        final_count = visual_count
+
+    # Create debug visualization if requested
+    debug_image = None
+    if debug:
+        if len(image.shape) == 2:
+            debug_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        else:
+            debug_image = image.copy()
+
+        # Draw street groups
+        colors = [
+            (0, 255, 0),    # Green
+            (255, 0, 0),    # Blue
+            (0, 0, 255),    # Red
+            (255, 255, 0),  # Cyan
+            (255, 0, 255),  # Magenta
+            (0, 255, 255),  # Yellow
+        ]
+
+        for i, group in enumerate(street_groups):
+            color = colors[i % len(colors)]
+            for line in group:
+                x1, y1, x2, y2 = line[0]
+                cv2.line(debug_image, (x1, y1), (x2, y2), color, 3)
+
+        # Draw street label locations
+        for x, y in street_label_locations:
+            cv2.circle(debug_image, (x, y), 10, (0, 0, 255), 2)
+
+    return final_count, debug_image
 
 
 def count_streets_on_plan(image: np.ndarray, debug: bool = False) -> Tuple[int, Optional[np.ndarray]]:

@@ -1,0 +1,105 @@
+name: Test Suite
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install Tesseract OCR
+        run: |
+          choco install tesseract -y
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          tesseract --version
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tools/esc-validator/requirements.txt
+          pip install pytest pytest-cov pytest-benchmark pytest-xdist
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v -m unit --cov=tools --cov-report=xml --cov-report=term
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v -m integration --cov=tools --cov-append --cov-report=xml --cov-report=term
+
+      - name: Run E2E tests
+        run: |
+          pytest tests/e2e/ -v -m e2e --cov=tools --cov-append --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Generate coverage report
+        run: |
+          pip install coverage
+          coverage report
+
+  lint:
+    name: Lint and Format Check
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black isort mypy
+
+      - name: Run flake8
+        run: |
+          flake8 tools/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 tools/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Check black formatting
+        run: |
+          black --check tools/ tests/
+
+      - name: Check isort import ordering
+        run: |
+          isort --check-only tools/ tests/
+
+      - name: Run mypy type checking
+        continue-on-error: true
+        run: |
+          mypy tools/ --ignore-missing-imports

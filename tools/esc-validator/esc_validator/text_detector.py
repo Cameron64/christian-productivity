@@ -385,29 +385,62 @@ def detect_street_labels_smart(text: str) -> Tuple[bool, int, List[str]]:
 def verify_street_labeling_complete(
     image: np.ndarray,
     text: str,
-    visual_count_func=None
+    visual_count_func=None,
+    use_contextaware_streets: bool = True,
+    use_multiscale_north_arrow: bool = True,
+    detect_sheet_type_enabled: bool = True
 ) -> DetectionResult:
     """
-    Complete street labeling verification (Phase 1.3).
+    Complete street labeling verification (Phase 1.3.1 Enhanced).
 
     Combines text-based label detection with visual street counting
-    to determine if ALL streets are labeled.
+    to determine if ALL streets are labeled. Now includes sheet type
+    detection and context-aware street counting.
 
     Args:
         image: Preprocessed image for visual analysis
         text: Extracted text for label detection
         visual_count_func: Optional function to count streets visually
-                          If None, only text detection is used
+                          If None, uses count_streets_contextaware (Phase 1.3.1)
+        use_contextaware_streets: Use context-aware street detection (default: True)
+        use_multiscale_north_arrow: Use multi-scale north arrow detection (default: True)
+        detect_sheet_type_enabled: Enable sheet type detection (default: True)
 
     Returns:
         DetectionResult with comprehensive street labeling assessment
     """
+    from .symbol_detector import detect_sheet_type, count_streets_contextaware
+
+    # NEW: Detect sheet type first (Phase 1.3.1)
+    sheet_type = "unknown"
+    if detect_sheet_type_enabled:
+        sheet_type = detect_sheet_type(image, text)
+
+        if sheet_type == "notes":
+            # Notes sheet - no streets expected
+            return DetectionResult(
+                element="streets",
+                detected=False,
+                confidence=0.95,  # High confidence this is correct
+                count=0,
+                matches=[],
+                notes="Notes sheet detected - no streets expected"
+            )
+
     # Step 1: Detect text labels
     detected, label_count, street_names = detect_street_labels_smart(text)
 
-    # Step 2: Count streets visually (if function provided)
+    # Step 2: Count streets visually
     visual_count = None
-    if visual_count_func is not None:
+    if use_contextaware_streets and visual_count_func is None:
+        # Use new context-aware counting (Phase 1.3.1)
+        try:
+            visual_count, _ = count_streets_contextaware(image, text, debug=False)
+        except Exception as e:
+            logger.warning(f"Context-aware street counting failed: {e}")
+            visual_count = None
+    elif visual_count_func is not None:
+        # Use provided function (legacy/testing)
         try:
             visual_count, _ = visual_count_func(image, debug=False)
         except Exception as e:
@@ -428,17 +461,19 @@ def verify_street_labeling_complete(
                 notes=f"Found {label_count} labeled street(s). Visual verification not available."
             )
         else:
+            sheet_note = f" (detected as {sheet_type} sheet)" if sheet_type != "unknown" else ""
             return DetectionResult(
                 element="streets",
                 detected=False,
                 confidence=0.5,
                 count=0,
                 matches=[],
-                notes="No street labels found. This may be an ESC Notes sheet."
+                notes=f"No street labels found{sheet_note}."
             )
 
     # Step 4: Calculate coverage
-    # Filter out obviously wrong visual counts (too high = detecting non-streets)
+    # Context-aware detection should eliminate the need for this check,
+    # but keep as safety net
     if visual_count > 20:
         logger.warning(f"Visual count very high ({visual_count}) - likely detecting non-street features")
         # Fall back to text-only
@@ -615,12 +650,12 @@ def detect_required_labels(
             logger.info(f"{status} {element}: detected={result.detected}, count={result.count}, confidence={result.confidence:.2f}")
             continue  # Skip normal keyword detection
 
-        # Phase 1.3: North arrow symbol detection
+        # Phase 1.3.1: North arrow symbol detection (multi-scale)
         if element == "north_bar":
             if enable_visual_detection:
                 # Try visual symbol detection
                 try:
-                    from .symbol_detector import detect_north_arrow
+                    from .symbol_detector import detect_north_arrow_multiscale
 
                     # Auto-detect template path if not provided
                     if template_dir is None:
@@ -631,17 +666,18 @@ def detect_required_labels(
                         template_path = template_dir / "north_arrow.png"
 
                     if template_path.exists():
-                        detected, confidence, location = detect_north_arrow(image, template_path)
+                        # Phase 1.3.1: Use multi-scale detection for better accuracy
+                        detected, confidence, location = detect_north_arrow_multiscale(image, template_path)
 
-                        if detected and confidence > 0.5:
-                            # Good detection
-                            notes = f"North arrow symbol detected at {location}" if location else "North arrow symbol detected"
+                        if detected and confidence > 0.75:
+                            # High confidence detection
+                            notes = f"North arrow symbol detected at {location} (high confidence)" if location else "North arrow symbol detected (high confidence)"
                         elif detected:
-                            # Low confidence
-                            notes = f"Possible north arrow detected (low confidence: {confidence:.1%})"
+                            # Moderate confidence
+                            notes = f"North arrow detected at {location} (confidence: {confidence:.1%})" if location else f"North arrow detected (confidence: {confidence:.1%})"
                         else:
                             # Not detected
-                            notes = "North arrow not detected via symbol matching"
+                            notes = "North arrow not detected via multi-scale template matching"
 
                         results[element] = DetectionResult(
                             element=element,

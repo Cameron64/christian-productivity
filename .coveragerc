@@ -1,0 +1,37 @@
+# Coverage configuration for pytest-cov
+
+[run]
+branch = True
+source = tools/
+omit =
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */.venv/*
+    */venv/*
+    */site-packages/*
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+exclude_lines =
+    # Default excludes
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    # Logger calls
+    logger.debug
+    # Defensive programming
+    except ImportError:
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage.xml
