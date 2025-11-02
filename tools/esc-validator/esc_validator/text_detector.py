@@ -100,6 +100,115 @@ def extract_text_from_image(image: np.ndarray, lang: str = "eng") -> str:
         return ""
 
 
+def extract_text_with_locations(image: np.ndarray, lang: str = "eng") -> List[Dict]:
+    """
+    Extract text with bounding box locations (Phase 2.1).
+
+    Uses Tesseract's image_to_data() to get text with spatial coordinates.
+
+    Args:
+        image: Preprocessed image as numpy array (grayscale)
+        lang: Tesseract language (default: "eng")
+
+    Returns:
+        List of dicts with:
+        - text: str (extracted text)
+        - x: int (center X coordinate in pixels)
+        - y: int (center Y coordinate in pixels)
+        - confidence: float (Tesseract confidence 0-100)
+    """
+    logger.info("Running OCR with bounding boxes")
+
+    try:
+        # Configure Tesseract for technical drawings
+        custom_config = r'--psm 6 --oem 3'
+
+        # Get detailed OCR data
+        data = pytesseract.image_to_data(image, lang=lang, config=custom_config, output_type=pytesseract.Output.DICT)
+
+        text_locations = []
+        for i in range(len(data['text'])):
+            text = data['text'][i].strip()
+            if text and int(data['conf'][i]) > 0:  # Only include valid text with confidence
+                text_locations.append({
+                    'text': text,
+                    'x': data['left'][i] + data['width'][i] // 2,  # Center X
+                    'y': data['top'][i] + data['height'][i] // 2,   # Center Y
+                    'confidence': float(data['conf'][i])
+                })
+
+        logger.info(f"Extracted {len(text_locations)} text elements with locations")
+        return text_locations
+
+    except Exception as e:
+        logger.error(f"OCR with bounding boxes error: {e}")
+        return []
+
+
+def is_contour_label(text: str) -> bool:
+    """
+    Check if text is likely a contour label (Phase 2.1).
+
+    Looks for contour keywords or elevation numbers.
+
+    Args:
+        text: Text to check
+
+    Returns:
+        True if text appears to be a contour label, False otherwise
+    """
+    text_lower = text.lower()
+
+    # Keywords that indicate contour labels
+    keywords = ['contour', 'existing', 'proposed', 'elev', 'elevation', 'ex', 'prop']
+    if any(kw in text_lower for kw in keywords):
+        return True
+
+    # Numeric elevation pattern (e.g., "100", "105.5")
+    # Contours typically in range 50-500 for Austin area
+    if re.match(r'^\d{2,3}\.?\d*$', text):
+        try:
+            value = float(text)
+            if 50 <= value <= 500:
+                return True
+        except ValueError:
+            pass
+
+    return False
+
+
+def is_existing_contour_label(text: str) -> bool:
+    """
+    Check if text indicates an existing contour (Phase 2.1).
+
+    Args:
+        text: Text to check
+
+    Returns:
+        True if text indicates existing contour, False otherwise
+    """
+    text_lower = text.lower()
+    existing_keywords = ['existing', 'exist', 'ex contour', 'ex.', 'ex ']
+
+    return any(kw in text_lower for kw in existing_keywords)
+
+
+def is_proposed_contour_label(text: str) -> bool:
+    """
+    Check if text indicates a proposed contour (Phase 2.1).
+
+    Args:
+        text: Text to check
+
+    Returns:
+        True if text indicates proposed contour, False otherwise
+    """
+    text_lower = text.lower()
+    proposed_keywords = ['proposed', 'prop', 'future', 'new']
+
+    return any(kw in text_lower for kw in proposed_keywords)
+
+
 def fuzzy_match(text: str, keyword: str, threshold: float = 0.8) -> bool:
     """
     Check if keyword appears in text using fuzzy matching.

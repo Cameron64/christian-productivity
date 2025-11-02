@@ -64,7 +64,8 @@ def validate_single_pdf(
     save_images: bool = False,
     output_dir: str = None,
     verbose: bool = False,
-    dpi: int = 300
+    dpi: int = 300,
+    enable_line_detection: bool = False
 ) -> bool:
     """
     Validate a single PDF file.
@@ -77,6 +78,7 @@ def validate_single_pdf(
         output_dir: Directory for outputs
         verbose: Include detailed findings
         dpi: Resolution for extraction
+        enable_line_detection: Enable Phase 2 line type detection
 
     Returns:
         True if validation passed, False otherwise
@@ -89,7 +91,8 @@ def validate_single_pdf(
         page_num=page_num,
         dpi=dpi,
         save_images=save_images,
-        output_dir=output_dir
+        output_dir=output_dir,
+        enable_line_detection=enable_line_detection
     )
 
     # Check if validation succeeded
@@ -138,7 +141,8 @@ def validate_batch(
     output_dir: str = None,
     save_images: bool = False,
     verbose: bool = False,
-    dpi: int = 300
+    dpi: int = 300,
+    enable_line_detection: bool = False
 ) -> dict:
     """
     Validate multiple PDF files.
@@ -149,6 +153,7 @@ def validate_batch(
         save_images: Whether to save extracted images
         verbose: Include detailed findings
         dpi: Resolution for extraction
+        enable_line_detection: Enable Phase 2 line type detection
 
     Returns:
         Dictionary with batch statistics
@@ -184,7 +189,8 @@ def validate_batch(
                 save_images=save_images,
                 output_dir=output_dir,
                 verbose=verbose,
-                dpi=dpi
+                dpi=dpi,
+                enable_line_detection=enable_line_detection
             )
 
             if passed:
@@ -293,6 +299,12 @@ Examples:
         help="Enable debug logging"
     )
 
+    parser.add_argument(
+        "--enable-line-detection",
+        action="store_true",
+        help="Enable Phase 2 line type detection (contour verification)"
+    )
+
     args = parser.parse_args()
 
     # Set log level
@@ -317,7 +329,8 @@ Examples:
                 output_dir=args.output_dir,
                 save_images=args.save_images,
                 verbose=args.verbose,
-                dpi=args.dpi
+                dpi=args.dpi,
+                enable_line_detection=args.enable_line_detection
             )
             # Exit with error code if any files failed or need review
             if results["failed"] > 0 or results["needs_review"] > 0:
@@ -332,7 +345,8 @@ Examples:
                 save_images=args.save_images,
                 output_dir=args.output_dir,
                 verbose=args.verbose,
-                dpi=args.dpi
+                dpi=args.dpi,
+                enable_line_detection=args.enable_line_detection
             )
 
             # Exit with error code if validation failed

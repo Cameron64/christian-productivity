@@ -14,8 +14,10 @@ from .text_detector import (
     detect_required_labels,
     verify_minimum_quantities,
     get_checklist_summary,
-    DetectionResult
+    DetectionResult,
+    extract_text_from_image
 )
+from .symbol_detector import verify_contour_conventions
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -84,13 +86,14 @@ def validate_esc_sheet(
     page_num: Optional[int] = None,
     dpi: int = 300,
     save_images: bool = False,
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None,
+    enable_line_detection: bool = False
 ) -> Dict[str, any]:
     """
-    Complete ESC sheet validation workflow (Phase 1).
+    Complete ESC sheet validation workflow (Phase 1 + Phase 2).
 
     Extracts ESC sheet, runs text detection, verifies minimum quantities,
-    and returns comprehensive validation results.
+    and optionally validates line types (contours).
 
     Args:
         pdf_path: Path to the PDF file
@@ -99,6 +102,7 @@ def validate_esc_sheet(
         dpi: Resolution for extraction (default: 300)
         save_images: Whether to save extracted/preprocessed images (default: False)
         output_dir: Directory to save images (if save_images=True)
+        enable_line_detection: Enable Phase 2 line type detection (default: False)
 
     Returns:
         Dictionary containing:
@@ -107,6 +111,7 @@ def validate_esc_sheet(
         - detection_results: Dict[str, DetectionResult] - Element detection results
         - quantity_results: Dict[str, bool] - Minimum quantity verification
         - summary: Dict - Summary statistics
+        - line_verification: Dict - Contour line verification (if enable_line_detection=True)
         - errors: List[str] - Any errors encountered
 
     Example:
@@ -189,8 +194,36 @@ def validate_esc_sheet(
     if not sheet_validation["is_esc_sheet"]:
         errors.append("WARNING: This may not be an ESC plan sheet - see validation warnings")
 
-    # Step 5: Generate summary
-    logger.info("Step 5: Generating summary")
+    # Step 5: Line type detection (Phase 2 + 2.1 - optional)
+    line_verification = None
+    if enable_line_detection:
+        logger.info("Step 5: Verifying contour line types (Phase 2.1 with spatial filtering)")
+        try:
+            # Extract text for line verification
+            text = extract_text_from_image(preprocessed_image)
+
+            # Use Phase 2.1 smart filtering by default
+            from .symbol_detector import verify_contour_conventions_smart
+            line_verification = verify_contour_conventions_smart(
+                preprocessed_image,
+                text,
+                max_distance=150,  # Default proximity threshold
+                use_spatial_filtering=True
+            )
+
+            # Add warnings if line conventions are violated
+            if not line_verification.get('existing_correct', True):
+                errors.append("WARNING: Existing contour line type may be incorrect")
+            if not line_verification.get('proposed_correct', True):
+                errors.append("WARNING: Proposed contour line type may be incorrect")
+
+        except Exception as e:
+            logger.warning(f"Line verification failed: {e}")
+            errors.append(f"Line verification error: {e}")
+
+    # Step 6: Generate summary
+    step_num = 6 if enable_line_detection else 5
+    logger.info(f"Step {step_num}: Generating summary")
     summary = get_checklist_summary(detection_results)
 
     # Check for critical failures
@@ -204,7 +237,7 @@ def validate_esc_sheet(
 
     logger.info(f"Validation complete: {summary['passed']}/{summary['total']} checks passed")
 
-    return {
+    result = {
         "success": success,
         "page_num": page_num_found,
         "detection_results": detection_results,
@@ -213,6 +246,12 @@ def validate_esc_sheet(
         "sheet_validation": sheet_validation,
         "errors": errors
     }
+
+    # Add line verification if enabled
+    if line_verification is not None:
+        result["line_verification"] = line_verification
+
+    return result
 
 
 def validate_esc_sheet_from_image(image_path: str) -> Dict[str, any]:

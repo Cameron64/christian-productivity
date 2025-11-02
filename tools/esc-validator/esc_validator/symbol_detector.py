@@ -8,7 +8,7 @@ Uses ORB (Oriented FAST and Rotated BRIEF) for rotation-invariant feature matchi
 import cv2
 import numpy as np
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -308,6 +308,466 @@ def group_parallel_lines(lines: np.ndarray, angle_threshold: float = 15, distanc
             street_groups.append(group)
 
     return street_groups
+
+
+def classify_line_type(line: np.ndarray, image: np.ndarray, sample_points: int = 20) -> Tuple[str, float]:
+    """
+    Classify a line as solid or dashed by analyzing pixel intensities along the line.
+
+    Args:
+        line: Line coordinates [x1, y1, x2, y2]
+        image: Binary edge image
+        sample_points: Number of points to sample along the line
+
+    Returns:
+        Tuple of (line_type, confidence)
+        - line_type: "solid", "dashed", or "unknown"
+        - confidence: 0.0-1.0 confidence score
+    """
+    x1, y1, x2, y2 = line[0] if len(line.shape) == 2 else line
+
+    # Generate sample points along the line
+    t = np.linspace(0, 1, sample_points)
+    x_points = (x1 + t * (x2 - x1)).astype(int)
+    y_points = (y1 + t * (y2 - y1)).astype(int)
+
+    # Clip to image bounds
+    h, w = image.shape[:2]
+    valid_mask = (x_points >= 0) & (x_points < w) & (y_points >= 0) & (y_points < h)
+    x_points = x_points[valid_mask]
+    y_points = y_points[valid_mask]
+
+    if len(x_points) < 5:
+        return "unknown", 0.0
+
+    # Sample pixel intensities along the line
+    intensities = image[y_points, x_points]
+
+    # Normalize to 0-1 range
+    if intensities.max() > 1:
+        intensities = intensities / 255.0
+
+    # Detect gaps (low intensity = no line)
+    threshold = 0.5
+    gaps = intensities < threshold
+
+    # Count transitions between line and gap
+    transitions = np.diff(gaps.astype(int))
+    num_transitions = np.sum(np.abs(transitions))
+
+    # Calculate line coverage (what % of the line has pixels)
+    coverage = np.sum(~gaps) / len(gaps)
+
+    # Classification logic:
+    # Solid line: high coverage (>80%), few transitions (<4)
+    # Dashed line: moderate coverage (30-80%), many transitions (≥4)
+    # Unknown: very low coverage (<30%)
+
+    if coverage > 0.8 and num_transitions < 4:
+        line_type = "solid"
+        confidence = min(1.0, coverage)
+    elif coverage >= 0.3 and num_transitions >= 4:
+        line_type = "dashed"
+        # More transitions = higher confidence it's dashed
+        confidence = min(1.0, num_transitions / 10.0)
+    else:
+        line_type = "unknown"
+        confidence = 0.0
+
+    logger.debug(f"Line classification: {line_type} (coverage={coverage:.2f}, transitions={num_transitions})")
+
+    return line_type, confidence
+
+
+def detect_contour_lines(
+    image: np.ndarray,
+    min_line_length: int = 300,
+    max_line_gap: int = 50,
+    classify_types: bool = True
+) -> Tuple[list, list]:
+    """
+    Detect contour lines on ESC sheet and optionally classify as solid/dashed.
+
+    Args:
+        image: Input image (grayscale or BGR)
+        min_line_length: Minimum line length to detect (default: 300)
+        max_line_gap: Maximum gap in line (default: 50)
+        classify_types: Whether to classify line types (default: True)
+
+    Returns:
+        Tuple of (solid_lines, dashed_lines)
+        Each is a list of tuples: [(line_coords, confidence), ...]
+    """
+    # Convert to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image.copy()
+
+    # Edge detection
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+    # Detect lines using Hough Transform
+    lines = cv2.HoughLinesP(
+        edges,
+        rho=1,
+        theta=np.pi/180,
+        threshold=80,
+        minLineLength=min_line_length,
+        maxLineGap=max_line_gap
+    )
+
+    if lines is None:
+        logger.debug("No contour lines detected")
+        return [], []
+
+    logger.debug(f"Detected {len(lines)} potential contour lines")
+
+    solid_lines = []
+    dashed_lines = []
+
+    if classify_types:
+        # Classify each line
+        for line in lines:
+            line_type, confidence = classify_line_type(line, edges)
+
+            if line_type == "solid":
+                solid_lines.append((line, confidence))
+            elif line_type == "dashed":
+                dashed_lines.append((line, confidence))
+            # Skip "unknown" lines
+
+    logger.info(f"Classified lines: {len(solid_lines)} solid, {len(dashed_lines)} dashed")
+
+    return solid_lines, dashed_lines
+
+
+def verify_contour_conventions(
+    image: np.ndarray,
+    text: str,
+    existing_should_be_dashed: bool = True
+) -> Dict[str, any]:
+    """
+    Verify that contour line type conventions are followed.
+
+    Standard convention (Austin):
+    - Existing contours: Dashed lines
+    - Proposed contours: Solid lines
+
+    Args:
+        image: Input image (grayscale or BGR)
+        text: Extracted text from OCR (for label matching)
+        existing_should_be_dashed: Whether existing contours should be dashed (default: True)
+
+    Returns:
+        Dictionary with verification results:
+        {
+            'existing_correct': bool,
+            'proposed_correct': bool,
+            'existing_confidence': float,
+            'proposed_confidence': float,
+            'notes': str
+        }
+    """
+    # Import here to avoid circular dependency
+    from .text_detector import fuzzy_match
+
+    # Detect lines and classify
+    solid_lines, dashed_lines = detect_contour_lines(image, classify_types=True)
+
+    # Find contour labels in text
+    has_existing = any(fuzzy_match(text, kw) for kw in ["existing", "exist", "ex"])
+    has_proposed = any(fuzzy_match(text, kw) for kw in ["proposed", "prop", "future"])
+
+    # Calculate confidence
+    total_lines = len(solid_lines) + len(dashed_lines)
+
+    if total_lines == 0:
+        return {
+            'existing_correct': False,
+            'proposed_correct': False,
+            'existing_confidence': 0.0,
+            'proposed_confidence': 0.0,
+            'notes': 'No contour lines detected'
+        }
+
+    # Check conventions
+    results = {
+        'existing_correct': True,
+        'proposed_correct': True,
+        'existing_confidence': 0.0,
+        'proposed_confidence': 0.0,
+        'notes': ''
+    }
+
+    notes = []
+
+    # Verify existing contours (should be dashed)
+    if has_existing:
+        if existing_should_be_dashed:
+            # Calculate average confidence of dashed lines
+            if dashed_lines:
+                avg_confidence = np.mean([conf for _, conf in dashed_lines])
+                results['existing_confidence'] = avg_confidence
+                results['existing_correct'] = len(dashed_lines) > 0
+                notes.append(f"Existing: {len(dashed_lines)} dashed lines (correct)")
+            else:
+                results['existing_correct'] = False
+                results['existing_confidence'] = 0.0
+                notes.append("WARNING: No dashed lines found for existing contours")
+        else:
+            # Solid existing contours
+            if solid_lines:
+                avg_confidence = np.mean([conf for _, conf in solid_lines])
+                results['existing_confidence'] = avg_confidence
+                results['existing_correct'] = len(solid_lines) > 0
+                notes.append(f"Existing: {len(solid_lines)} solid lines (correct)")
+
+    # Verify proposed contours (should be solid)
+    if has_proposed:
+        if solid_lines:
+            avg_confidence = np.mean([conf for _, conf in solid_lines])
+            results['proposed_confidence'] = avg_confidence
+            results['proposed_correct'] = len(solid_lines) > 0
+            notes.append(f"Proposed: {len(solid_lines)} solid lines (correct)")
+        else:
+            results['proposed_correct'] = False
+            results['proposed_confidence'] = 0.0
+            notes.append("WARNING: No solid lines found for proposed contours")
+
+    results['notes'] = '; '.join(notes)
+
+    logger.info(f"Contour verification: {results['notes']}")
+
+    return results
+
+
+def verify_contour_conventions_smart(
+    image: np.ndarray,
+    text: str,
+    max_distance: int = 150,
+    use_spatial_filtering: bool = True,
+    existing_should_be_dashed: bool = True
+) -> Dict[str, any]:
+    """
+    Enhanced contour convention verification with spatial filtering (Phase 2.1).
+
+    Uses spatial proximity to filter out non-contour lines (streets, lot lines, etc.)
+    and focus only on lines near contour labels.
+
+    Args:
+        image: Input image (grayscale or BGR)
+        text: Extracted text from OCR (for label matching)
+        max_distance: Maximum distance (pixels) for label-to-line association (default: 150)
+        use_spatial_filtering: Enable spatial filtering (default: True)
+        existing_should_be_dashed: Whether existing contours should be dashed (default: True)
+
+    Returns:
+        Dictionary with verification results:
+        {
+            'existing_correct': bool,
+            'proposed_correct': bool,
+            'existing_confidence': float,
+            'proposed_confidence': float,
+            'notes': str,
+            'total_lines_detected': int,
+            'contour_lines_identified': int,
+            'filter_effectiveness': float,
+            'contour_labels_found': int,
+            'spatial_filtering_enabled': bool
+        }
+    """
+    # Import here to avoid circular dependency
+    from .text_detector import (
+        extract_text_with_locations,
+        is_contour_label,
+        is_existing_contour_label,
+        is_proposed_contour_label
+    )
+
+    # Detect all lines
+    solid_lines, dashed_lines = detect_contour_lines(image, classify_types=True)
+    all_lines = [(line, conf, 'solid') for line, conf in solid_lines] + \
+                [(line, conf, 'dashed') for line, conf in dashed_lines]
+
+    total_lines = len(all_lines)
+
+    if total_lines == 0:
+        return {
+            'existing_correct': False,
+            'proposed_correct': False,
+            'existing_confidence': 0.0,
+            'proposed_confidence': 0.0,
+            'notes': 'No lines detected',
+            'total_lines_detected': 0,
+            'contour_lines_identified': 0,
+            'filter_effectiveness': 0.0,
+            'contour_labels_found': 0,
+            'spatial_filtering_enabled': use_spatial_filtering
+        }
+
+    # If spatial filtering disabled, use original function
+    if not use_spatial_filtering:
+        basic_results = verify_contour_conventions(image, text, existing_should_be_dashed)
+        basic_results.update({
+            'total_lines_detected': total_lines,
+            'contour_lines_identified': total_lines,
+            'filter_effectiveness': 0.0,
+            'contour_labels_found': 0,
+            'spatial_filtering_enabled': False
+        })
+        return basic_results
+
+    # Extract text with locations
+    text_locations = extract_text_with_locations(image)
+
+    # Filter for contour labels
+    contour_labels = [
+        (loc['text'], loc['x'], loc['y'])
+        for loc in text_locations
+        if is_contour_label(loc['text'])
+    ]
+
+    contour_labels_count = len(contour_labels)
+    logger.info(f"Found {contour_labels_count} contour labels")
+
+    if contour_labels_count == 0:
+        logger.warning("No contour labels detected - falling back to unfiltered detection")
+        basic_results = verify_contour_conventions(image, text, existing_should_be_dashed)
+        basic_results.update({
+            'total_lines_detected': total_lines,
+            'contour_lines_identified': total_lines,
+            'filter_effectiveness': 0.0,
+            'contour_labels_found': 0,
+            'spatial_filtering_enabled': True,
+            'notes': basic_results['notes'] + '; No contour labels found for filtering'
+        })
+        return basic_results
+
+    # Find lines near contour labels
+    nearby_lines = find_labels_near_lines(
+        contour_labels,
+        [line for line, _, _ in all_lines],
+        max_distance
+    )
+
+    # Get unique line indices
+    contour_line_indices = set(line_idx for _, line_idx, _ in nearby_lines)
+    contour_lines_count = len(contour_line_indices)
+
+    logger.info(f"Identified {contour_lines_count} lines near contour labels (filtered from {total_lines} total lines)")
+
+    # Filter to contour lines only
+    contour_solid = [
+        (line, conf) for i, (line, conf, type_) in enumerate(all_lines)
+        if i in contour_line_indices and type_ == 'solid'
+    ]
+    contour_dashed = [
+        (line, conf) for i, (line, conf, type_) in enumerate(all_lines)
+        if i in contour_line_indices and type_ == 'dashed'
+    ]
+
+    # Check for existing/proposed labels
+    has_existing = any(is_existing_contour_label(text) for text, _, _ in contour_labels)
+    has_proposed = any(is_proposed_contour_label(text) for text, _, _ in contour_labels)
+
+    # Verify conventions on filtered lines
+    results = {
+        'existing_correct': True,
+        'proposed_correct': True,
+        'existing_confidence': 0.0,
+        'proposed_confidence': 0.0,
+        'notes': '',
+        'total_lines_detected': total_lines,
+        'contour_lines_identified': contour_lines_count,
+        'filter_effectiveness': 1 - (contour_lines_count / total_lines) if total_lines > 0 else 0.0,
+        'contour_labels_found': contour_labels_count,
+        'spatial_filtering_enabled': True
+    }
+
+    notes = []
+
+    # Verify existing contours (should be dashed)
+    if has_existing:
+        if existing_should_be_dashed:
+            if contour_dashed:
+                avg_confidence = np.mean([conf for _, conf in contour_dashed])
+                results['existing_confidence'] = avg_confidence
+                results['existing_correct'] = True
+                notes.append(f"Existing: {len(contour_dashed)} dashed contour lines (correct)")
+            else:
+                results['existing_correct'] = False
+                results['existing_confidence'] = 0.0
+                notes.append("WARNING: No dashed contour lines found for existing contours")
+        else:
+            if contour_solid:
+                avg_confidence = np.mean([conf for _, conf in contour_solid])
+                results['existing_confidence'] = avg_confidence
+                results['existing_correct'] = True
+                notes.append(f"Existing: {len(contour_solid)} solid contour lines (correct)")
+
+    # Verify proposed contours (should be solid)
+    if has_proposed:
+        if contour_solid:
+            avg_confidence = np.mean([conf for _, conf in contour_solid])
+            results['proposed_confidence'] = avg_confidence
+            results['proposed_correct'] = True
+            notes.append(f"Proposed: {len(contour_solid)} solid contour lines (correct)")
+        else:
+            results['proposed_correct'] = False
+            results['proposed_confidence'] = 0.0
+            notes.append("WARNING: No solid contour lines found for proposed contours")
+
+    # Add filter statistics
+    filter_pct = results['filter_effectiveness'] * 100
+    notes.append(f"Filtered: {total_lines} total lines -> {contour_lines_count} contour lines ({filter_pct:.0f}% reduction)")
+
+    results['notes'] = '; '.join(notes)
+
+    logger.info(f"Smart contour verification: {results['notes']}")
+
+    return results
+
+
+def find_labels_near_lines(
+    text_with_locations: list,
+    lines: list,
+    max_distance: float = 100
+) -> list:
+    """
+    Find text labels that are spatially near lines (contours, streets, etc).
+
+    Args:
+        text_with_locations: List of (text, x, y) tuples from OCR with bounding boxes
+        lines: List of line coordinates [x1, y1, x2, y2]
+        max_distance: Maximum distance (pixels) to consider "near" (default: 100)
+
+    Returns:
+        List of (label, line_idx, distance) tuples for labels near lines
+    """
+    nearby_labels = []
+
+    for text, x, y in text_with_locations:
+        min_distance = float('inf')
+        closest_line_idx = -1
+
+        for idx, line in enumerate(lines):
+            line_coords = line[0] if len(line.shape) == 2 else line
+            x1, y1, x2, y2 = line_coords
+
+            # Calculate distance from label to line
+            dist = point_to_line_distance((x, y), (x1, y1), (x2, y2))
+
+            if dist < min_distance:
+                min_distance = dist
+                closest_line_idx = idx
+
+        if min_distance <= max_distance and closest_line_idx >= 0:
+            nearby_labels.append((text, closest_line_idx, min_distance))
+
+    logger.debug(f"Found {len(nearby_labels)} labels near lines")
+
+    return nearby_labels
 
 
 def count_streets_on_plan(image: np.ndarray, debug: bool = False) -> Tuple[int, Optional[np.ndarray]]:
