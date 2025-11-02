@@ -64,8 +64,10 @@ def validate_single_pdf(
     save_images: bool = False,
     output_dir: str = None,
     verbose: bool = False,
+    verbose_progress: bool = False,
     dpi: int = 300,
-    enable_line_detection: bool = False
+    enable_line_detection: bool = False,
+    ocr_engine: str = "tesseract"
 ) -> bool:
     """
     Validate a single PDF file.
@@ -76,7 +78,8 @@ def validate_single_pdf(
         page_num: Specific page number (optional)
         save_images: Whether to save extracted images
         output_dir: Directory for outputs
-        verbose: Include detailed findings
+        verbose: Include detailed findings in report
+        verbose_progress: Show progress indicators during validation
         dpi: Resolution for extraction
         enable_line_detection: Enable Phase 2 line type detection
 
@@ -92,7 +95,9 @@ def validate_single_pdf(
         dpi=dpi,
         save_images=save_images,
         output_dir=output_dir,
-        enable_line_detection=enable_line_detection
+        enable_line_detection=enable_line_detection,
+        verbose=verbose_progress,
+        ocr_engine=ocr_engine
     )
 
     # Check if validation succeeded
@@ -141,6 +146,7 @@ def validate_batch(
     output_dir: str = None,
     save_images: bool = False,
     verbose: bool = False,
+    verbose_progress: bool = False,
     dpi: int = 300,
     enable_line_detection: bool = False
 ) -> dict:
@@ -151,7 +157,8 @@ def validate_batch(
         pdf_paths: List of PDF file paths
         output_dir: Directory to save reports
         save_images: Whether to save extracted images
-        verbose: Include detailed findings
+        verbose: Include detailed findings in reports
+        verbose_progress: Show progress indicators during validation
         dpi: Resolution for extraction
         enable_line_detection: Enable Phase 2 line type detection
 
@@ -189,6 +196,7 @@ def validate_batch(
                 save_images=save_images,
                 output_dir=output_dir,
                 verbose=verbose,
+                verbose_progress=verbose_progress,
                 dpi=dpi,
                 enable_line_detection=enable_line_detection
             )
@@ -283,6 +291,18 @@ Examples:
     parser.add_argument(
         "-v", "--verbose",
         action="store_true",
+        help="Show detailed progress and timing information"
+    )
+
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_true",
+        help="Suppress all output except errors"
+    )
+
+    parser.add_argument(
+        "--verbose-report",
+        action="store_true",
         help="Generate verbose report with detailed findings"
     )
 
@@ -305,11 +325,24 @@ Examples:
         help="Enable Phase 2 line type detection (contour verification)"
     )
 
+    parser.add_argument(
+        "--ocr-engine",
+        choices=["paddleocr", "tesseract"],
+        default="tesseract",
+        help="OCR engine to use (default: tesseract, paddleocr has API issues)"
+    )
+
     args = parser.parse_args()
 
-    # Set log level
-    if args.debug:
+    # Set log level based on verbosity flags
+    if args.quiet:
+        logging.getLogger().setLevel(logging.ERROR)
+    elif args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+    elif args.verbose:
+        logging.getLogger().setLevel(logging.INFO)
+    else:
+        logging.getLogger().setLevel(logging.WARNING)
 
     # Validate arguments
     if len(args.pdf_files) > 1 and not args.batch:
@@ -328,7 +361,8 @@ Examples:
                 pdf_paths=args.pdf_files,
                 output_dir=args.output_dir,
                 save_images=args.save_images,
-                verbose=args.verbose,
+                verbose=args.verbose_report,
+                verbose_progress=args.verbose,
                 dpi=args.dpi,
                 enable_line_detection=args.enable_line_detection
             )
@@ -344,9 +378,11 @@ Examples:
                 page_num=args.page,
                 save_images=args.save_images,
                 output_dir=args.output_dir,
-                verbose=args.verbose,
+                verbose=args.verbose_report,
+                verbose_progress=args.verbose,
                 dpi=args.dpi,
-                enable_line_detection=args.enable_line_detection
+                enable_line_detection=args.enable_line_detection,
+                ocr_engine=args.ocr_engine
             )
 
             # Exit with error code if validation failed

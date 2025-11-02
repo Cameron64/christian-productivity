@@ -1,4 +1,4 @@
-# ESC Validator - Phase 1 Requirements
+# ESC Validator - Phase 1-4 Requirements
 # Core PDF and image processing
 pdfplumber>=0.10.0
 pypdf>=3.17.0
@@ -8,10 +8,14 @@ pandas>=2.0.0
 
 # OpenCV for image processing
 opencv-python>=4.8.0
-opencv-contrib-python>=4.8.0
+opencv-contrib-python==4.10.0.84  # Locked version required by PaddleOCR
 
 # Text processing and matching
 python-Levenshtein>=0.21.0
 
 # Visualization and reporting
 matplotlib>=3.7.0
+
+# ML/AI OCR - Phase 4.1
+paddleocr>=3.3.0
+paddlepaddle>=3.2.0

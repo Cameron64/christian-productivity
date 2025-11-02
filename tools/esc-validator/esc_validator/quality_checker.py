@@ -1,15 +1,19 @@
 """
-Quality Checker for ESC Sheets (Phase 4)
+Quality Checker for ESC Sheets (Phase 4 + Phase 4.1)
 
 Detects overlapping labels and validates spatial relationships between
 labels and features.
+
+Phase 4.1: Uses cached OCR results from text_detector to eliminate redundant OCR.
 """
 
 import logging
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
 import numpy as np
-import pytesseract
+
+# Import OCR engine abstraction (Phase 4.1)
+from .ocr_engine import get_ocr_cache, get_ocr_engine, OCRResult
 
 logger = logging.getLogger(__name__)
 
@@ -120,60 +124,72 @@ PROXIMITY_RULES = {
 }
 
 
-def extract_text_with_bboxes(image: np.ndarray, lang: str = "eng", min_confidence: float = 0.0) -> List[TextElement]:
+def extract_text_with_bboxes(
+    image: np.ndarray,
+    lang: str = "eng",
+    min_confidence: float = 0.0,
+    ocr_engine: str = "paddleocr",
+    use_cached: bool = True
+) -> List[TextElement]:
     """
-    Extract text with full bounding boxes from image.
+    Extract text with full bounding boxes from image (Phase 4.1 Enhanced).
+
+    Uses cached OCR results from Phase 1 if available, eliminating redundant OCR.
 
     Args:
-        image: Preprocessed image as numpy array (grayscale)
-        lang: Tesseract language (default: "eng")
+        image: Preprocessed image as numpy array (grayscale or BGR)
+        lang: OCR language (default: "eng")
         min_confidence: Minimum confidence threshold (0-100), default 0
+        ocr_engine: OCR engine to use if cache miss (default: "paddleocr")
+        use_cached: Whether to use cached results (default: True)
 
     Returns:
         List of TextElement objects with bounding boxes
     """
-    logger.info("Running OCR with full bounding boxes for quality checks")
+    # Try to use cached results first (Phase 4.1 performance optimization)
+    ocr_results = None
+    if use_cached:
+        ocr_results = get_ocr_cache()
+        if ocr_results:
+            logger.info(f"Using cached OCR results ({len(ocr_results)} elements) - SKIPPING redundant OCR")
+        else:
+            logger.debug("No cached OCR results available")
 
-    try:
-        # Configure Tesseract for technical drawings
-        custom_config = r'--psm 6 --oem 3'
+    # If no cache, run fresh OCR (fallback)
+    if ocr_results is None:
+        logger.warning("Running fresh OCR for quality checks - cache miss")
+        try:
+            engine = get_ocr_engine(ocr_engine)
+            ocr_results = engine.extract_text(image, lang=lang, min_confidence=min_confidence)
+        except Exception as e:
+            logger.error(f"OCR error in quality checker: {e}")
+            return []
 
-        # Get detailed OCR data with bounding boxes
-        data = pytesseract.image_to_data(
-            image,
-            lang=lang,
-            config=custom_config,
-            output_type=pytesseract.Output.DICT
+    # Convert OCRResult objects to TextElement format for backward compatibility
+    text_elements = []
+    for result in ocr_results:
+        # Filter by confidence
+        if result.confidence < min_confidence:
+            continue
+
+        # Create BoundingBox from OCRResult bbox
+        bbox = BoundingBox(
+            x=result.x,
+            y=result.y,
+            width=result.width,
+            height=result.height
         )
 
-        text_elements = []
-        for i in range(len(data['text'])):
-            text = data['text'][i].strip()
-            conf = float(data['conf'][i])
+        # Filter out very thin boxes (likely lines, not text)
+        if bbox.width >= 5 and bbox.height >= 5:
+            text_elements.append(TextElement(
+                text=result.text,
+                bbox=bbox,
+                confidence=result.confidence
+            ))
 
-            # Filter by confidence and validity
-            if text and conf >= min_confidence:
-                bbox = BoundingBox(
-                    x=data['left'][i],
-                    y=data['top'][i],
-                    width=data['width'][i],
-                    height=data['height'][i]
-                )
-
-                # Filter out very thin boxes (likely lines, not text)
-                if bbox.width >= 5 and bbox.height >= 5:
-                    text_elements.append(TextElement(
-                        text=text,
-                        bbox=bbox,
-                        confidence=conf
-                    ))
-
-        logger.info(f"Extracted {len(text_elements)} text elements with bounding boxes")
-        return text_elements
-
-    except Exception as e:
-        logger.error(f"OCR with bounding boxes error: {e}")
-        return []
+    logger.info(f"Processed {len(text_elements)} text elements for quality checks")
+    return text_elements
 
 
 def calculate_bbox_intersection(bbox1: BoundingBox, bbox2: BoundingBox) -> Optional[BoundingBox]:

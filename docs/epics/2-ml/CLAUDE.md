@@ -148,6 +148,34 @@ docs/epics/2-ml/
 
 **Decision:** PaddleOCR for Phase 4.1
 
+### MCP Servers (Model Context Protocol) ✅ AVAILABLE
+
+**PaddleOCR MCP Server** - Installed and configured (v0.2.0)
+- **Status:** ✅ Connected and ready to use
+- **Purpose:** Advanced OCR capabilities via Claude Code
+- **Configuration:** In `.claude.json` for this project
+- **Mode:** Local (runs on your machine)
+- **Pipeline:** OCR (text detection and recognition)
+- **Token Cost:** ~1,000-2,000 tokens when loaded in context
+- **Performance:** Potentially faster than direct Python integration
+- **Use Cases:**
+  - Benchmarking PaddleOCR vs Tesseract accuracy
+  - Testing OCR on ESC sheets without writing Python code
+  - Quick prototyping before Phase 4.1 implementation
+  - Interactive OCR testing during development
+- **How to Use:**
+  - Available automatically in Claude Code (this project)
+  - Can process images directly via MCP tools
+  - Compare against pytesseract for accuracy/speed tradeoffs
+  - Use for rapid experimentation before committing to full integration
+
+**Verification:**
+```bash
+claude mcp list  # Shows paddleocr-ocr: ✓ Connected
+```
+
+**Documentation:** [PaddleOCR MCP Server](http://www.paddleocr.ai/latest/en/version3.x/deployment/mcp_server.html)
+
 ---
 
 ### Machine Learning

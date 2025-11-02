@@ -30,13 +30,14 @@
 | **3** | North Arrow/Scale Detection | 2025-11-02 | - | ❌ **Deferred** (Phase 1.3.2) |
 | **4** | **Quality Checks (Lite)** | 2025-11-02 | **TBD** | ✅ **Complete - Needs Optimization** |
 
-### ⏳ Pending/Planned Phases (3 phases)
+### ⏳ Pending/Planned Phases (4 phases)
 
 | Phase | Name | Priority | Status | Notes |
 |-------|------|----------|--------|-------|
 | **3** | North Arrow/Scale Detection | Low | ❌ Deferred | Template matching not feasible (Phase 1.3.2) |
-| **5** | Confidence Scoring | Medium | ⏳ Not Started | May not be needed |
-| **6** | Machine Learning (Advanced) | Low | 🔄 **See Epic 2** | YOLOv8 for symbol detection (optional) |
+| **5** | **TOC Indexing & Verbosity** | **HIGH** | 📝 **Planned** | Infrastructure improvement (6-7 hours) |
+| **6** | Confidence Scoring | Medium | ⏳ Not Started | May not be needed |
+| **7** | Machine Learning (Advanced) | Low | 🔄 **See Epic 2** | YOLOv8 for symbol detection (optional) |
 
 **Epic 2 (ML/AI Enhancements):** [docs/epics/2-ml/](../../2-ml/)
 - **Phase 4.1:** PaddleOCR integration for better OCR performance (HIGH priority) - [See Epic 2](../../2-ml/phases/phase-4.1/PLAN.md)
@@ -209,7 +210,41 @@ Detects overlapping labels and validates spatial relationships for QC.
 
 ---
 
-### Phase 5: Confidence Scoring ⏳
+### Phase 5: TOC Indexing & Enhanced Verbosity 📝
+**Status:** Planned | **Priority:** HIGH (Infrastructure)
+
+Automatic sheet detection and multi-level verbosity for better UX.
+
+**Features:**
+1. **TOC Indexing:**
+   - Auto-parse table of contents from PDF
+   - Build searchable sheet index with caching
+   - Auto-detect ESC sheets by classification
+   - No more manual page hunting!
+
+2. **Enhanced Verbosity:**
+   - 4 verbosity levels: silent, normal, verbose, debug
+   - Clear progress indicators (`[1/6] Loading PDF...`)
+   - Timing information per phase
+   - Better debugging and user feedback
+
+**Time Savings:**
+- Manual sheet finding: 2-5 min per drawing → 0 min (automatic)
+- Annual savings: 1.6-4.2 hours/year (50 drawing sets)
+- Plus: better UX and easier debugging
+
+**Timeline:** 6-7 hours
+- TOC parser: 2 hours
+- Index caching: 1 hour
+- Logger module: 1.5 hours
+- CLI integration: 1.5 hours
+- Testing: 1 hour
+
+**Documentation:** [phase-5/README.md](phase-5/README.md) | [phase-5/PLAN.md](phase-5/PLAN.md)
+
+---
+
+### Phase 6: Confidence Scoring ⏳
 **Status:** Not Started | **Priority:** Medium
 
 Multi-signal confidence aggregation across all phases.
@@ -221,11 +256,11 @@ Multi-signal confidence aggregation across all phases.
 
 **Decision:** Current phases already provide confidence scores; may integrate differently.
 
-**Documentation:** [phase-5/README.md](phase-5/README.md)
+**Documentation:** [phase-6/README.md](phase-6/README.md)
 
 ---
 
-### Phase 6: Machine Learning ⏳
+### Phase 7: Machine Learning ⏳
 **Status:** Optional | **Priority:** Low
 
 ML-based detection only if rule-based approach achieves <70% accuracy.
@@ -350,10 +385,14 @@ docs/epics/1-initial-implementation/phases/
 │   ├── PLAN.md
 │   └── IMPLEMENTATION.md
 │
-├── phase-5/                     # Phase 5 (not started)
+├── phase-5/                     # Phase 5 (planned - TOC & verbosity)
+│   ├── README.md
+│   └── PLAN.md
+│
+├── phase-6/                     # Phase 6 (not started)
 │   └── README.md
 │
-└── phase-6/                     # Phase 6 → See Epic 2
+└── phase-7/                     # Phase 7 → See Epic 2
     └── README.md
 ```
 

@@ -99,6 +99,7 @@ esc-validator/
 │   ├── fuzzy_matching.py      # Phase 4: Fuzzy text matching
 │   ├── confidence_scoring.py  # Phase 5: Multi-signal scoring
 │   └── ml_detection.py        # Phase 6: Machine learning (future)
+│                              # Note: PaddleOCR MCP available for Phase 6
 ├── validators/
 │   ├── critical_items.py  # SCE, CONC WASH validators
 │   └── standard_items.py  # Other checklist validators
@@ -738,7 +739,37 @@ docs/phases/
 
 ---
 
-**Last Updated:** 2025-11-01 (after Phase 2.1 completion)
-**Phase Status:** Phase 1 + Phase 2 + Phase 2.1 complete and production ready
-**Current Version:** 0.2.1
+## Available Tools & Infrastructure
+
+### MCP Servers (Model Context Protocol)
+
+**PaddleOCR MCP Server** - Installed and available (v0.2.0)
+- **Purpose:** Advanced OCR capabilities for Claude Desktop
+- **Use Case:** Phase 6 ML detection, Phase 4.1 ML enhancements
+- **Configuration:** Located in `%APPDATA%\Claude\claude_desktop_config.json`
+- **Mode:** Local (runs on your machine)
+- **Token Cost:** ~1,000-2,000 tokens when loaded in context
+- **Performance:** Potentially faster and more accurate than pytesseract
+- **When to Use:**
+  - Benchmarking OCR accuracy improvements
+  - Detecting complex handwritten text
+  - Processing low-quality or rotated images
+  - ML-based text detection experiments
+- **How to Use:**
+  - Available automatically in Claude Desktop after restart
+  - Use via Claude Desktop's MCP tool interface
+  - Compare against pytesseract for accuracy/speed tradeoffs
+
+**Installation Check:**
+```bash
+paddleocr_mcp --help
+```
+
+**Documentation:** [PaddleOCR MCP Server](http://www.paddleocr.ai/latest/en/version3.x/deployment/mcp_server.html)
+
+---
+
+**Last Updated:** 2025-11-02 (after PaddleOCR MCP setup)
+**Phase Status:** Phase 1 + Phase 2 + Phase 2.1 + Phase 4 complete and production ready
+**Current Version:** 0.3.0
 **Primary Developer:** Claude (with Christian as domain expert)

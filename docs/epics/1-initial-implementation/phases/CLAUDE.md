@@ -176,31 +176,54 @@ docs/epics/1-initial-implementation/phases/
 
 ---
 
-### Phase 3: Spatial Reasoning ⏳
-**Planned features:**
-- Geometric relationship analysis
-- Feature proximity validation
-- Spatial consistency checks
+### Phase 3: North Arrow/Scale Detection ❌
+**Status:** DEFERRED
+**Priority:** Low
+**Decision:** Template matching not feasible after Phase 1.3.2 investigation
 
-**Status:** Not started
-**Priority:** Medium
-**Decision:** May not be needed if Phases 1-2.1 achieve target accuracy
+See: [phase-3/phase-1.3.2/RESULTS.md](phase-3/phase-1.3.2/RESULTS.md)
 
 ---
 
-### Phase 4: Fuzzy Matching ⏳
-**Planned features:**
-- Advanced text matching for variations
-- Abbreviation handling
-- Typo tolerance
-
-**Status:** Not started
+### Phase 4: Quality Checks ✅
+**Status:** COMPLETE
 **Priority:** Medium
-**Decision:** Phase 1 already has basic fuzzy matching; may not need enhancement
+**Completion Date:** 2025-11-02
+
+See: [phase-4/README.md](phase-4/README.md)
 
 ---
 
-### Phase 5: Confidence Scoring ⏳
+### Phase 5: TOC Indexing & Enhanced Verbosity 📝
+**Status:** PLANNED
+**Priority:** HIGH (Infrastructure)
+**Timeline:** 6-7 hours
+
+**Features:**
+1. **TOC Indexing:**
+   - Auto-parse table of contents from PDF
+   - Build searchable sheet index with caching
+   - Auto-detect ESC sheets by classification
+   - No more manual page hunting
+
+2. **Enhanced Verbosity:**
+   - 4 levels: silent, normal, verbose, debug
+   - Progress indicators: `[1/6] Loading PDF...`
+   - Timing per phase
+   - Better debugging
+
+**Time Savings:** 1.6-4.2 hours/year + improved UX
+
+**New Modules:**
+- `toc_parser.py` - Extract TOC and classify sheets
+- `index_cache.py` - Cache management
+- `logger.py` - Multi-level logging
+
+**Documentation:** [phase-5/README.md](phase-5/README.md) | [phase-5/PLAN.md](phase-5/PLAN.md)
+
+---
+
+### Phase 6: Confidence Scoring ⏳
 **Planned features:**
 - Multi-signal confidence aggregation
 - Weighted scoring across phases
@@ -212,7 +235,7 @@ docs/epics/1-initial-implementation/phases/
 
 ---
 
-### Phase 6: Machine Learning ⏳
+### Phase 7: Machine Learning ⏳
 **Planned features:**
 - Custom object detector (YOLO)
 - Better OCR (PaddleOCR)

@@ -1,35 +1,31 @@
 """
-OCR-Based Text Detection
+OCR-Based Text Detection (Phase 4.1 Enhanced)
 
-Detect required text labels and features on ESC sheets using OCR (Tesseract).
-Includes fuzzy matching for robust keyword detection.
+Detect required text labels and features on ESC sheets using OCR.
+Supports both PaddleOCR (primary) and Tesseract (fallback).
+Includes fuzzy matching for robust keyword detection and OCR caching.
 """
 
 import logging
 import re
-import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
-import pytesseract
 import numpy as np
 from Levenshtein import ratio as levenshtein_ratio
+
+# Import new OCR engine abstraction (Phase 4.1)
+from .ocr_engine import (
+    get_ocr_engine,
+    OCRResult,
+    set_ocr_cache,
+    get_ocr_cache,
+    clear_ocr_cache
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Configure Tesseract path for Windows
-if sys.platform == "win32":
-    tesseract_paths = [
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-    ]
-    for path in tesseract_paths:
-        if Path(path).exists():
-            pytesseract.pytesseract.tesseract_cmd = path
-            logger.debug(f"Tesseract found at: {path}")
-            break
 
 
 @dataclass
@@ -71,28 +67,47 @@ MIN_QUANTITIES = {
 }
 
 
-def extract_text_from_image(image: np.ndarray, lang: str = "eng") -> str:
+def extract_text_from_image(
+    image: np.ndarray,
+    lang: str = "eng",
+    ocr_engine: str = "paddleocr",
+    use_cache: bool = True,
+    min_confidence: float = 0.0
+) -> str:
     """
-    Extract all text from image using Tesseract OCR.
+    Extract all text from image using OCR (Phase 4.1 Enhanced).
+
+    Uses PaddleOCR by default for better accuracy and performance.
+    Caches OCR results with bounding boxes for reuse in Phase 4.
 
     Args:
-        image: Preprocessed image as numpy array (grayscale)
-        lang: Tesseract language (default: "eng")
+        image: Preprocessed image as numpy array (grayscale or BGR)
+        lang: OCR language (default: "eng")
+        ocr_engine: OCR engine to use ("paddleocr" or "tesseract")
+        use_cache: Whether to cache OCR results (default: True)
+        min_confidence: Minimum confidence threshold 0-100 (default: 0.0)
 
     Returns:
         Extracted text as string
     """
-    logger.info("Running OCR on image")
+    logger.info(f"Running OCR on image (engine: {ocr_engine})")
 
     try:
-        # Configure Tesseract for technical drawings
-        # --psm 6: Assume uniform block of text
-        # --oem 3: Default OCR Engine Mode (LSTM)
-        custom_config = r'--psm 6 --oem 3'
+        # Get OCR engine instance
+        engine = get_ocr_engine(ocr_engine)
 
-        text = pytesseract.image_to_string(image, lang=lang, config=custom_config)
-        logger.info(f"Extracted {len(text)} characters of text")
+        # Extract text with bounding boxes
+        ocr_results = engine.extract_text(image, lang=lang, min_confidence=min_confidence)
 
+        # Cache results for Phase 4 quality checks
+        if use_cache:
+            set_ocr_cache(ocr_results)
+            logger.debug(f"Cached {len(ocr_results)} OCR results for reuse")
+
+        # Convert OCRResult objects to plain text
+        text = "\n".join([result.text for result in ocr_results])
+
+        logger.info(f"Extracted {len(text)} characters of text from {len(ocr_results)} elements")
         return text
 
     except Exception as e:
@@ -100,49 +115,64 @@ def extract_text_from_image(image: np.ndarray, lang: str = "eng") -> str:
         return ""
 
 
-def extract_text_with_locations(image: np.ndarray, lang: str = "eng") -> List[Dict]:
+def extract_text_with_locations(
+    image: np.ndarray,
+    lang: str = "eng",
+    ocr_engine: str = "paddleocr",
+    use_cached: bool = True
+) -> List[Dict]:
     """
-    Extract text with bounding box locations (Phase 2.1).
+    Extract text with bounding box locations (Phase 2.1 + Phase 4.1).
 
-    Uses Tesseract's image_to_data() to get text with spatial coordinates.
+    Uses cached OCR results if available, otherwise runs fresh OCR.
 
     Args:
-        image: Preprocessed image as numpy array (grayscale)
-        lang: Tesseract language (default: "eng")
+        image: Preprocessed image as numpy array (grayscale or BGR)
+        lang: OCR language (default: "eng")
+        ocr_engine: OCR engine to use if cache miss (default: "paddleocr")
+        use_cached: Whether to use cached results (default: True)
 
     Returns:
         List of dicts with:
         - text: str (extracted text)
         - x: int (center X coordinate in pixels)
         - y: int (center Y coordinate in pixels)
-        - confidence: float (Tesseract confidence 0-100)
+        - confidence: float (OCR confidence 0-100)
     """
-    logger.info("Running OCR with bounding boxes")
+    logger.debug("Extracting text with bounding boxes")
 
-    try:
-        # Configure Tesseract for technical drawings
-        custom_config = r'--psm 6 --oem 3'
+    # Try to use cached results first
+    ocr_results = None
+    if use_cached:
+        ocr_results = get_ocr_cache()
+        if ocr_results:
+            logger.debug(f"Using cached OCR results ({len(ocr_results)} elements)")
 
-        # Get detailed OCR data
-        data = pytesseract.image_to_data(image, lang=lang, config=custom_config, output_type=pytesseract.Output.DICT)
+    # If no cache, run fresh OCR
+    if ocr_results is None:
+        logger.info("No cached OCR results, running fresh OCR with bounding boxes")
+        try:
+            engine = get_ocr_engine(ocr_engine)
+            ocr_results = engine.extract_text(image, lang=lang, min_confidence=0.0)
 
-        text_locations = []
-        for i in range(len(data['text'])):
-            text = data['text'][i].strip()
-            if text and int(data['conf'][i]) > 0:  # Only include valid text with confidence
-                text_locations.append({
-                    'text': text,
-                    'x': data['left'][i] + data['width'][i] // 2,  # Center X
-                    'y': data['top'][i] + data['height'][i] // 2,   # Center Y
-                    'confidence': float(data['conf'][i])
-                })
+            # Cache for future use
+            set_ocr_cache(ocr_results)
+        except Exception as e:
+            logger.error(f"OCR with bounding boxes error: {e}")
+            return []
 
-        logger.info(f"Extracted {len(text_locations)} text elements with locations")
-        return text_locations
+    # Convert OCRResult objects to dict format for backward compatibility
+    text_locations = []
+    for result in ocr_results:
+        text_locations.append({
+            'text': result.text,
+            'x': int(result.center_x),  # Center X
+            'y': int(result.center_y),  # Center Y
+            'confidence': result.confidence
+        })
 
-    except Exception as e:
-        logger.error(f"OCR with bounding boxes error: {e}")
-        return []
+    logger.debug(f"Returned {len(text_locations)} text elements with locations")
+    return text_locations
 
 
 def is_contour_label(text: str) -> bool:
@@ -569,7 +599,8 @@ def detect_required_labels(
     image: np.ndarray,
     checklist_elements: Optional[List[str]] = None,
     enable_visual_detection: bool = True,
-    template_dir: Optional[Path] = None
+    template_dir: Optional[Path] = None,
+    ocr_engine: str = "tesseract"
 ) -> Dict[str, DetectionResult]:
     """
     Detect all required labels from the ESC checklist.
@@ -594,7 +625,7 @@ def detect_required_labels(
     logger.info("Starting required label detection (Phase 1.2 + 1.3)")
 
     # Extract all text from image
-    full_text = extract_text_from_image(image)
+    full_text = extract_text_from_image(image, ocr_engine=ocr_engine)
 
     if not full_text.strip():
         logger.warning("No text extracted from image - OCR may have failed")
