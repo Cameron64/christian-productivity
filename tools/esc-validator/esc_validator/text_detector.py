@@ -217,10 +217,17 @@ def is_existing_contour_label(text: str) -> bool:
     Returns:
         True if text indicates existing contour, False otherwise
     """
-    text_lower = text.lower()
-    existing_keywords = ['existing', 'exist', 'ex contour', 'ex.', 'ex ']
+    text_lower = text.lower().strip()
 
-    return any(kw in text_lower for kw in existing_keywords)
+    # Check for full keywords first
+    if any(kw in text_lower for kw in ['existing', 'exist']):
+        return True
+
+    # Check for standalone 'ex' or 'ex' with punctuation/space
+    if text_lower == 'ex' or text_lower.startswith('ex ') or text_lower.startswith('ex.') or 'ex contour' in text_lower:
+        return True
+
+    return False
 
 
 def is_proposed_contour_label(text: str) -> bool:

@@ -19,9 +19,10 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
-# Add project root to path for imports
+# Add project root and tools/esc-validator to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "tools" / "esc-validator"))
 
 # Test fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

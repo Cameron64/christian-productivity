@@ -12,9 +12,9 @@ from pathlib import Path
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tools.esc_validator.esc_validator.extractor import extract_page_as_image, preprocess_for_ocr
-from tools.esc_validator.esc_validator.text_detector import extract_text_from_image
-from tools.esc_validator.esc_validator.symbol_detector import (
+from esc_validator.extractor import extract_page_as_image, preprocess_for_ocr
+from esc_validator.text_detector import extract_text_from_image
+from esc_validator.symbol_detector import (
     verify_contour_conventions_smart,
     verify_contour_conventions  # Phase 2 (for comparison)
 )
@@ -129,9 +129,10 @@ class TestSpatialFiltering:
             use_spatial_filtering=True
         )
 
-        # Should return empty results without crashing
-        assert 'contours' in result
-        assert len(result['contours']) == 0
+        # Should return valid results without crashing
+        assert 'existing_correct' in result
+        assert 'proposed_correct' in result
+        assert result['contour_lines_identified'] == 0
 
     def test_spatial_filtering_distance_parameter(self, sample_text_image):
         """Should respect max_distance parameter."""
@@ -146,7 +147,7 @@ class TestSpatialFiltering:
         )
 
         # Larger distance should capture more (or equal) contours
-        assert len(result_200px['contours']) >= len(result_100px['contours'])
+        assert result_200px['contour_lines_identified'] >= result_100px['contour_lines_identified']
 
     def test_spatial_filtering_fallback_when_no_labels(self, blank_image):
         """Should fall back to Phase 2 behavior when no contour labels found."""
@@ -159,8 +160,9 @@ class TestSpatialFiltering:
         )
 
         # Should still return valid structure
-        assert 'contours' in result
-        assert 'filter_stats' in result
+        assert 'existing_correct' in result
+        assert 'proposed_correct' in result
+        assert 'spatial_filtering_enabled' in result
 
 
 # ============================================================================
